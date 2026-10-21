@@ -10,6 +10,8 @@ document.addEventListener("DOMContentLoaded", async function(){
   byId("refresh-staff").addEventListener("click",loadStaffDashboard);
   byId("search-scholars").addEventListener("input",renderStaffRows);
   byId("filter-compliance").addEventListener("change",renderStaffRows);
+  const filterProgram=byId("filter-program");
+  if(filterProgram) filterProgram.addEventListener("change",renderStaffRows);
   try {
     if(SUPABASE_URL.includes("YOUR-PROJECT") || SUPABASE_ANON_KEY.includes("YOUR_SUPABASE")) throw new Error("Configure Supabase in js/supabase.js first.");
     const sessionResult=await supabaseClient.auth.getSession();
@@ -51,6 +53,39 @@ function numberValue(id,integer){
  if(id==="gwa"&&(v<1||v>5))throw new Error("GWA must be between 1.00 and 5.00.");
  return v;
 }
+function formatManila(iso){
+  try{return new Date(iso).toLocaleString("en-PH",{timeZone:"Asia/Manila"});}catch(e){return String(iso||"");}
+}
+function friendlyAction(action){
+  const map={
+    SUBMIT_ACADEMIC_SUMMARY:"Submitted academic summary",
+    RESUBMIT_CORRECTED_ACADEMIC_SUMMARY:"Resubmitted corrected summary",
+    VERIFY_SUBMISSION:"Verified evidence",
+    RETURN_SUBMISSION:"Returned for correction",
+    EVALUATE_COMPLIANCE:"Evaluated compliance",
+    RENEWAL_APPROVED:"Approved renewal",
+    RENEWAL_HELD:"Held renewal",
+    REGISTER_SCHOLAR:"Registered scholar"
+  };
+  return map[action]||String(action||"").replace(/_/g," ");
+}
+function formatDetails(details){
+  if(!details)return "—";
+  if(typeof details==="string"){
+    try{details=JSON.parse(details);}catch(e){return esc(details);}
+  }
+  if(typeof details!=="object")return esc(String(details));
+  const parts=[];
+  if(details.decision)parts.push("Decision: "+details.decision);
+  if(details.status)parts.push("Status: "+details.status);
+  if(details.reason)parts.push("Reason: "+details.reason);
+  if(Array.isArray(details.reasons)&&details.reasons.length)parts.push("Reasons: "+details.reasons.join("; "));
+  if(details.student_id)parts.push("Student: "+details.student_id);
+  if(details.policy)parts.push("Policy: "+details.policy);
+  if(details.academic_year)parts.push(details.academic_year+(details.semester?" Sem "+details.semester:""));
+  if(!parts.length)return esc(JSON.stringify(details));
+  return esc(parts.join(" · "));
+}
 async function submitAcademicSummary(ev){
  ev.preventDefault();showMessage("");
  if(!currentScholar){showMessage("Your account is not linked to a scholar record.");return;}
@@ -83,7 +118,7 @@ async function loadScholarSubmissions(){
   const reasons=Array.isArray(r.deficiency_reasons)?r.deficiency_reasons.join(" "):"";
   const renewal=r.renewal_decisions&&r.renewal_decisions[0]?r.renewal_decisions[0].decision:"Not decided";
   const correction=r.submission_status==="Returned" ? '<button class="secondary" data-correct="'+r.id+'">Correct and resubmit</button>' : "";
-  html+="<tr><td>"+esc(r.academic_year)+" · Sem "+r.semester+"</td><td>"+Number(r.gwa).toFixed(2)+"</td><td>"+badge(r.submission_status)+(r.verification_reason?"<div class='reason'>"+esc(r.verification_reason)+"</div>":"")+"</td><td>"+badge(r.compliance_status)+"<div class='reason'>"+esc(reasons)+"</div></td><td>"+badge(renewal)+"</td><td>"+esc(new Date(r.submitted_at).toLocaleString())+"<div>"+correction+"</div></td></tr>";
+  html+="<tr><td>"+esc(r.academic_year)+" · Sem "+r.semester+"</td><td>"+Number(r.gwa).toFixed(2)+"</td><td>"+badge(r.submission_status)+(r.verification_reason?"<div class='reason'>"+esc(r.verification_reason)+"</div>":"")+"</td><td>"+badge(r.compliance_status)+"<div class='reason'>"+esc(reasons)+"</div></td><td>"+badge(renewal)+"</td><td>"+esc(formatManila(r.submitted_at))+"<div>"+correction+"</div></td></tr>";
  });
  box.innerHTML=html+"</tbody></table>";
  box.querySelectorAll("button[data-correct]").forEach(function(btn){btn.addEventListener("click",function(){beginCorrection(btn.dataset.correct);});});
@@ -115,11 +150,21 @@ async function registerScholar(ev){
 }
 async function loadAuditHistory(){
  const box=byId("audit-records");if(!box)return;
+ box.innerHTML="<p class='muted'>Loading audit history...</p>";
  const result=await supabaseClient.from("audit_logs").select("id,actor_id,action,entity_type,entity_id,details,created_at").order("created_at",{ascending:false}).limit(50);
  if(result.error){box.textContent=result.error.message;return;}
  if(!result.data||!result.data.length){box.innerHTML="<p class='muted'>No audit events yet.</p>";return;}
- let html="<table><thead><tr><th>Time</th><th>Actor ID</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>";
- result.data.forEach(function(r){html+="<tr><td>"+esc(new Date(r.created_at).toLocaleString())+"</td><td>"+esc(r.actor_id||"System")+"</td><td>"+esc(r.action)+"</td><td>"+esc(r.entity_type)+"</td><td>"+esc(JSON.stringify(r.details||{}))+"</td></tr>";});
+ const actorIds=[...new Set(result.data.map(function(r){return r.actor_id;}).filter(Boolean))];
+ let nameMap={};
+ if(actorIds.length){
+  const names=await supabaseClient.from("profiles").select("id,full_name").in("id",actorIds);
+  if(names.data) names.data.forEach(function(p){nameMap[p.id]=p.full_name;});
+ }
+ let html="<table><thead><tr><th>Time (Manila)</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>";
+ result.data.forEach(function(r){
+  const actorName=nameMap[r.actor_id]||(r.actor_id?String(r.actor_id).slice(0,8)+"…":"System");
+  html+="<tr><td>"+esc(formatManila(r.created_at))+"</td><td>"+esc(actorName)+"</td><td>"+esc(friendlyAction(r.action))+"</td><td>"+esc(r.entity_type)+"</td><td>"+formatDetails(r.details)+"</td></tr>";
+ });
  box.innerHTML=html+"</tbody></table>";
 }
 async function loadStaffDashboard(){
@@ -133,12 +178,28 @@ async function loadStaffDashboard(){
  byId("metric-pending").textContent=staffRows.filter(function(r){return r.submission_status==="Pending";}).length;
  byId("metric-compliant").textContent=staffRows.filter(function(r){return r.compliance_status==="Compliant";}).length;
  byId("metric-deficiency").textContent=staffRows.filter(function(r){return r.compliance_status==="With Deficiency";}).length;
+ const progSelect=byId("filter-program");
+ if(progSelect){
+  const programs=[...new Set((sch.data||[]).map(function(s){return s.scholarship_programs&&s.scholarship_programs.program_name;}).filter(Boolean))];
+  const current=progSelect.value;
+  progSelect.innerHTML='<option value="">All programs</option>'+programs.map(function(p){return '<option value="'+esc(p)+'">'+esc(p)+'</option>';}).join("");
+  if(current) progSelect.value=current;
+ }
  renderStaffRows();
 }
 function renderStaffRows(){
  const box=byId("staff-records");if(!box)return;
- const term=(byId("search-scholars").value||"").toLowerCase(),filter=byId("filter-compliance").value;
- const rows=staffRows.filter(function(r){const s=r.scholar||{};return ((s.student_id||"")+" "+(s.full_name||"")).toLowerCase().includes(term)&&(!filter||r.compliance_status===filter);});
+ const term=(byId("search-scholars").value||"").toLowerCase();
+ const filter=byId("filter-compliance").value;
+ const progEl=byId("filter-program");
+ const prog=progEl?progEl.value:"";
+ const rows=staffRows.filter(function(r){
+  const s=r.scholar||{};
+  const nameMatch=((s.student_id||"")+" "+(s.full_name||"")).toLowerCase().includes(term);
+  const compMatch=!filter||r.compliance_status===filter;
+  const progMatch=!prog||(s.scholarship_programs&&s.scholarship_programs.program_name===prog);
+  return nameMatch&&compMatch&&progMatch;
+ });
  if(!rows.length){box.innerHTML="<p class='muted'>No matching submissions. The assigned scholar count includes scholars without submissions.</p>";return;}
  let html="<table><thead><tr><th>Scholar</th><th>Policy</th><th>Academic summary</th><th>Verification</th><th>Compliance</th><th>Renewal</th><th>Actions</th></tr></thead><tbody>";
  rows.forEach(function(r){
@@ -147,10 +208,10 @@ function renderStaffRows(){
   const renewal=r.renewal_decisions&&r.renewal_decisions[0]?r.renewal_decisions[0].decision:"Not decided";
   let actions="";
   if(r.submission_status==="Pending")actions+='<button class="primary" data-action="verify" data-id="'+r.id+'">Verify</button> <button class="secondary" data-action="return" data-id="'+r.id+'">Return</button>';
-  if(r.submission_status==="Verified")actions+='<button class="secondary" data-action="evaluate" data-id="'+r.id+'">Evaluate</button>';
+  if(r.submission_status==="Verified"&&(!r.compliance_status||r.compliance_status==="Pending"))actions+='<button class="secondary" data-action="evaluate" data-id="'+r.id+'">Evaluate</button>';
   if(r.submission_status==="Verified"&&r.compliance_status==="Compliant")actions+='<button class="primary" data-action="approve" data-id="'+r.id+'">Approve</button>';
-  if(r.submission_status==="Verified"&&r.compliance_status!=="Pending")actions+='<button class="secondary" data-action="hold" data-id="'+r.id+'">Hold</button>';
-  html+="<tr><td><strong>"+esc(s.full_name||"Unknown")+"</strong><div class='reason'>"+esc(s.student_id||"")+" · "+esc(s.degree_program||"")+"</div></td><td>"+esc(policy)+"</td><td>GWA "+Number(r.gwa).toFixed(2)+"<div class='reason'>"+r.units_enrolled+" units · Failed "+r.failed_subjects+" · INC "+r.incomplete_subjects+" · Dropped "+r.dropped_subjects+"</div><div class='reason'>"+esc(r.evidence_reference)+"</div></td><td>"+badge(r.submission_status)+(r.verification_reason?"<div class='reason'>"+esc(r.verification_reason)+"</div>":"")+"</td><td>"+badge(r.compliance_status)+"<div class='reason'>"+esc(reasons)+"</div></td><td>"+badge(renewal)+"</td><td class='actions'>"+actions+"</td></tr>";
+  if(r.submission_status==="Verified"&&r.compliance_status&&r.compliance_status!=="Pending")actions+='<button class="secondary" data-action="hold" data-id="'+r.id+'">Hold</button>';
+  html+="<tr><td><strong>"+esc(s.full_name||"Unknown")+"</strong><div class='reason'>"+esc(s.student_id||"")+" · "+esc(s.degree_program||"")+"</div></td><td>"+esc(policy)+"</td><td>GWA "+Number(r.gwa).toFixed(2)+"<div class='reason'>"+r.units_enrolled+" units · Failed "+r.failed_subjects+" · INC "+r.incomplete_subjects+" · Dropped "+r.dropped_subjects+"</div><div class='reason'>"+esc(r.evidence_reference)+"</div><div class='reason'>Submitted: "+esc(formatManila(r.submitted_at))+"</div></td><td>"+badge(r.submission_status)+(r.verification_reason?"<div class='reason'>"+esc(r.verification_reason)+"</div>":"")+"</td><td>"+badge(r.compliance_status)+"<div class='reason'>"+esc(reasons)+"</div></td><td>"+badge(renewal)+"</td><td class='actions'>"+actions+"</td></tr>";
  });
  box.innerHTML=html+"</tbody></table>";
  box.querySelectorAll("button[data-action]").forEach(function(btn){btn.addEventListener("click",function(){handleStaffAction(btn.dataset.action,btn.dataset.id);});});
@@ -166,7 +227,8 @@ async function handleStaffAction(action,id){
   }else if(action==="evaluate"){
    const result=await supabaseClient.rpc("staff_evaluate_submission",{p_submission_id:id});
    if(result.error)throw result.error;
-   showMessage("Evaluation completed: "+result.data.status+".",true);
+   const status=(result.data&&result.data.status)||"done";
+   showMessage("Evaluation completed: "+status+".",true);
   }else if(action==="approve"||action==="hold"){
    const reason=action==="hold"?prompt("Reason for holding renewal:"):null;
    if(action==="hold"&&(!reason||!reason.trim()))return;
@@ -181,4 +243,4 @@ function badge(value){
  const cls=["Compliant","Approved","Verified"].includes(value)?"good":(["With Deficiency","Returned","Held"].includes(value)?"bad":"wait");
  return '<span class="status '+cls+'">'+esc(value||"Pending")+"</span>";
 }
-function esc(value){return String(value==null?"":value).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];});}
+function esc(value){return String(value==null?"":value).replace(/[&<>"']/g,function(ch){return {"&":"&","<":"<",">":">",'"':""","'":"&#39;"}[ch];});}
