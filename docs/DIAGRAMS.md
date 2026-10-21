@@ -1,10 +1,10 @@
 # UML Use Case Diagram and ERD
 
-These Mermaid diagrams are source diagrams. GitHub renders Mermaid in Markdown preview. Open this file on GitHub and use its preview to capture the diagrams for the examination report.
+These diagrams represent the scope and core data model required by the examination. GitHub renders Mermaid diagrams in the Markdown preview.
 
 ## Use Case Diagram
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
   Scholar([Scholar])
   Staff([Scholarship Staff])
@@ -13,14 +13,15 @@ flowchart LR
     Submit([Submit Academic Summary])
     Status([View Submission Status])
     Correct([Correct Returned Submission])
-    Register([Register Scholar])
-    Verify([Verify Submission])
+    Register([Register Scholar and Assign Policy])
+    Verify([Verify or Return Submission])
     Evaluate([Evaluate Compliance])
     Policy([Check Assigned Policy])
     Deadline([Check Submission Deadline])
     Reasons([View Deficiency Reasons])
     Renewal([Record Renewal Decision])
-    Dashboard([View Dashboard and Audit History])
+    Dashboard([View Dashboard, Search and Filter])
+    History([View Decision and Audit History])
   end
   Scholar --> Login
   Scholar --> Submit
@@ -32,56 +33,76 @@ flowchart LR
   Staff --> Evaluate
   Staff --> Renewal
   Staff --> Dashboard
+  Staff --> History
   Evaluate -. "<<include>>" .-> Policy
   Evaluate -. "<<include>>" .-> Deadline
   Reasons -. "<<extend>> when checks fail" .-> Evaluate
-\`\`\`
+```
 
 ## Entity Relationship Diagram
 
-\`\`\`mermaid
+```mermaid
 erDiagram
   AUTH_USERS ||--|| PROFILES : has
-  AUTH_USERS o|--o| SCHOLARS : linked_login
-  SCHOLARSHIP_POLICIES ||--o{ SCHOLARS : assigned_to
-  SCHOLARS ||--o{ ACADEMIC_SUBMISSIONS : submits
-  ACADEMIC_SUBMISSIONS ||--o| RENEWAL_DECISIONS : receives
-  AUTH_USERS o|--o{ ACADEMIC_SUBMISSIONS : verifies_or_evaluates
-  AUTH_USERS o|--o{ AUDIT_LOGS : performs
+  SCHOLARSHIP_PROGRAMS ||--o{ SCHOLARS : assigned_to
+  SCHOLARS ||--o{ GRADE_SUBMISSIONS : submits
+  GRADE_SUBMISSIONS ||--o{ COMPLIANCE_EVALUATIONS : evaluated_as
+  GRADE_SUBMISSIONS ||--o{ RENEWAL_DECISIONS : receives
+  AUTH_USERS o|--o{ GRADE_SUBMISSIONS : verifies
+  AUTH_USERS ||--o{ RENEWAL_DECISIONS : decides
+  AUTH_USERS ||--o{ AUDIT_LOGS : performs
   PROFILES {
-    uuid user_id PK
+    uuid id PK
     text full_name
     text role
   }
-  SCHOLARSHIP_POLICIES {
+  SCHOLARSHIP_PROGRAMS {
     uuid id PK
-    text policy_name
-    numeric max_gwa
+    text program_name
+    numeric required_gwa
     integer min_units
+    boolean allow_failing_grade
+    boolean active
   }
   SCHOLARS {
     uuid id PK
-    uuid user_id FK
     text student_id UK
     text full_name
-    text program
-    uuid policy_id FK
+    text degree_program
+    text year_level
+    uuid scholarship_id FK
+    text status
   }
-  ACADEMIC_SUBMISSIONS {
+  GRADE_SUBMISSIONS {
     uuid id PK
     uuid scholar_id FK
     text academic_year
-    integer semester
+    text semester
     numeric gwa
-    integer units_completed
-    text verification_status
-    text compliance_status
+    integer units_enrolled
+    integer failed_subjects
+    integer incomplete_subjects
+    integer dropped_subjects
+    text evidence_reference
+    timestamptz submitted_at
+    text submission_status
+    uuid verified_by FK
+    timestamptz verified_at
+  }
+  COMPLIANCE_EVALUATIONS {
+    uuid id PK
+    uuid submission_id FK
+    text compliance_result
+    text deficiency_reasons
+    timestamptz evaluated_at
   }
   RENEWAL_DECISIONS {
     uuid id PK
     uuid submission_id FK
     text decision
+    text decision_reason
     uuid decided_by FK
+    timestamptz decided_at
   }
   AUDIT_LOGS {
     bigint id PK
@@ -89,10 +110,12 @@ erDiagram
     text action
     timestamptz created_at
   }
-\`\`\`
+```
 
 ## Relationship notes
-- One scholarship policy can be assigned to many scholars.
-- One scholar can submit academic records across multiple academic terms.
-- Each submission can have at most one current renewal decision.
-- User roles are stored in profiles; application actions are restricted with Row Level Security and staff-only database functions.
+- Each authenticated account has a profile and role.
+- A scholarship program can be assigned to many scholars.
+- Each scholar can submit one record per academic year and semester; duplicate term submissions must be blocked.
+- Each submission has verification status, compliance evaluation history, and renewal decision history.
+- A submission can be Verified while its compliance result is With Deficiency and the scholarship award remains Active. These statuses are separate.
+- Backend/database access rules must restrict scholars to their own records and reserve verification, evaluation, and renewal actions for Scholarship Staff.
