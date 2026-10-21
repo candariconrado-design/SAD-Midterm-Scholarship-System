@@ -1,8 +1,11 @@
-let currentUser=null, currentRole="scholar", currentScholar=null, staffRows=[];
+let currentUser=null, currentRole="scholar", currentScholar=null, staffRows=[], editingSubmissionId=null;
 
 document.addEventListener("DOMContentLoaded", async function(){
   byId("logout-btn").addEventListener("click",logout);
   byId("submission-form").addEventListener("submit",submitAcademicSummary);
+  byId("cancel-edit").addEventListener("click",cancelCorrection);
+  byId("register-scholar-form").addEventListener("submit",registerScholar);
+  byId("refresh-audit").addEventListener("click",loadAuditHistory);
   byId("refresh-scholar").addEventListener("click",loadScholarSubmissions);
   byId("refresh-staff").addEventListener("click",loadStaffDashboard);
   byId("search-scholars").addEventListener("input",renderStaffRows);
@@ -23,6 +26,7 @@ document.addEventListener("DOMContentLoaded", async function(){
       byId("role-description").textContent="Verify submissions, evaluate compliance, and record renewal decisions.";
       byId("staff-panel").classList.remove("hidden");
       await loadStaffDashboard();
+      await loadAuditHistory();
     }else{
       byId("welcome-title").textContent="My scholarship";
       byId("role-description").textContent="Submit academic records and track your compliance status.";
@@ -56,11 +60,14 @@ async function submitAcademicSummary(ev){
    gwa:numberValue("gwa",false),units_completed:numberValue("units",true),
    failed_count:numberValue("failed",true),incomplete_count:numberValue("incompletes",true),
    dropped_count:numberValue("dropped",true),evidence_reference:byId("evidence").value.trim(),
-   verification_status:"Pending Verification",compliance_status:"Pending"};
+   verification_status:"Pending Verification",compliance_status:"Pending",verification_reason:null,verified_by:null,verified_at:null,evaluated_by:null,evaluated_at:null,deficiency_reasons:[]};
   if(!payload.evidence_reference)throw new Error("Enter the evidence document reference.");
-  const res=await supabaseClient.from("academic_submissions").insert(payload);
+  let res;
+  if(editingSubmissionId) res=await supabaseClient.from("academic_submissions").update(payload).eq("id",editingSubmissionId);
+  else res=await supabaseClient.from("academic_submissions").insert(payload);
   if(res.error){if(res.error.code==="23505")throw new Error("A submission already exists for this semester.");throw res.error;}
-  await supabaseClient.from("audit_logs").insert({actor_id:currentUser.id,action:"SUBMIT_ACADEMIC_SUMMARY",entity_type:"academic_submission",details:{academic_year:"2026-2027",semester:1}});
+  await supabaseClient.from("audit_logs").insert({actor_id:currentUser.id,action:editingSubmissionId?"RESUBMIT_CORRECTED_ACADEMIC_SUMMARY":"SUBMIT_ACADEMIC_SUMMARY",entity_type:"academic_submission",entity_id:editingSubmissionId||null,details:{academic_year:"2026-2027",semester:1}});
+  editingSubmissionId=null;byId("submission-heading").textContent="Submit academic summary";byId("cancel-edit").classList.add("hidden");
   form.reset();byId("failed").value="0";byId("incompletes").value="0";byId("dropped").value="0";
   showMessage("Academic summary submitted for verification.",true);await loadScholarSubmissions();
  }catch(e){showMessage(e.message||"Submission failed.");}finally{btn.disabled=false;}
@@ -75,8 +82,44 @@ async function loadScholarSubmissions(){
  res.data.forEach(function(r){
   const reasons=Array.isArray(r.deficiency_reasons)?r.deficiency_reasons.join(" "):"";
   const renewal=r.renewal_decisions&&r.renewal_decisions[0]?r.renewal_decisions[0].decision:"Not decided";
-  html+="<tr><td>"+esc(r.academic_year)+" · Sem "+r.semester+"</td><td>"+Number(r.gwa).toFixed(2)+"</td><td>"+badge(r.verification_status)+(r.verification_reason?"<div class='reason'>"+esc(r.verification_reason)+"</div>":"")+"</td><td>"+badge(r.compliance_status)+"<div class='reason'>"+esc(reasons)+"</div></td><td>"+badge(renewal)+"</td><td>"+esc(new Date(r.submitted_at).toLocaleString())+"</td></tr>";
+  const correction=r.verification_status==="Returned" ? '<button class="secondary" data-correct="'+r.id+'">Correct and resubmit</button>' : "";
+  html+="<tr><td>"+esc(r.academic_year)+" · Sem "+r.semester+"</td><td>"+Number(r.gwa).toFixed(2)+"</td><td>"+badge(r.verification_status)+(r.verification_reason?"<div class='reason'>"+esc(r.verification_reason)+"</div>":"")+"</td><td>"+badge(r.compliance_status)+"<div class='reason'>"+esc(reasons)+"</div></td><td>"+badge(renewal)+"</td><td>"+esc(new Date(r.submitted_at).toLocaleString())+"<div>"+correction+"</div></td></tr>";
  });
+ box.innerHTML=html+"</tbody></table>";
+ box.querySelectorAll("button[data-correct]").forEach(function(btn){btn.addEventListener("click",function(){beginCorrection(btn.dataset.correct);});});
+}
+async function beginCorrection(id){
+ const result=await supabaseClient.from("academic_submissions").select("*").eq("id",id).eq("verification_status","Returned").single();
+ if(result.error){showMessage(result.error.message);return;}
+ const r=result.data;editingSubmissionId=id;
+ byId("gwa").value=r.gwa;byId("units").value=r.units_completed;byId("failed").value=r.failed_count;
+ byId("incompletes").value=r.incomplete_count;byId("dropped").value=r.dropped_count;byId("evidence").value=r.evidence_reference;
+ byId("submission-heading").textContent="Correct returned submission";
+ byId("cancel-edit").classList.remove("hidden");
+ byId("submission-form").scrollIntoView({behavior:"smooth",block:"start"});
+ showMessage("Correct the fields, then resubmit for verification.");
+}
+function cancelCorrection(){editingSubmissionId=null;byId("submission-form").reset();byId("submission-heading").textContent="Submit academic summary";byId("cancel-edit").classList.add("hidden");}
+async function registerScholar(ev){
+ ev.preventDefault();showMessage("");
+ const form=ev.currentTarget,btn=form.querySelector("button[type=submit]");btn.disabled=true;
+ try{
+  const policy=await supabaseClient.from("scholarship_policies").select("id").eq("policy_name",byId("reg-policy").value).eq("active",true).single();
+  if(policy.error)throw policy.error;
+  const payload={student_id:byId("reg-student-id").value.trim(),full_name:byId("reg-full-name").value.trim(),program:byId("reg-program").value.trim(),policy_id:policy.data.id,created_by:currentUser.id};
+  const result=await supabaseClient.from("scholars").insert(payload);
+  if(result.error){if(result.error.code==="23505")throw new Error("That student ID is already registered.");throw result.error;}
+  await supabaseClient.from("audit_logs").insert({actor_id:currentUser.id,action:"REGISTER_SCHOLAR",entity_type:"scholar",details:{student_id:payload.student_id,policy:byId("reg-policy").value}});
+  form.reset();showMessage("Scholar record registered. Link the scholar login in Supabase using the setup guide.",true);await loadStaffDashboard();await loadAuditHistory();
+ }catch(e){showMessage(e.message||"Could not register scholar.");}finally{btn.disabled=false;}
+}
+async function loadAuditHistory(){
+ const box=byId("audit-records");if(!box)return;
+ const result=await supabaseClient.from("audit_logs").select("id,actor_id,action,entity_type,entity_id,details,created_at").order("created_at",{ascending:false}).limit(50);
+ if(result.error){box.textContent=result.error.message;return;}
+ if(!result.data||!result.data.length){box.innerHTML="<p class='muted'>No audit events yet.</p>";return;}
+ let html="<table><thead><tr><th>Time</th><th>Actor ID</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>";
+ result.data.forEach(function(r){html+="<tr><td>"+esc(new Date(r.created_at).toLocaleString())+"</td><td>"+esc(r.actor_id||"System")+"</td><td>"+esc(r.action)+"</td><td>"+esc(r.entity_type)+"</td><td>"+esc(JSON.stringify(r.details||{}))+"</td></tr>";});
  box.innerHTML=html+"</tbody></table>";
 }
 async function loadStaffDashboard(){
