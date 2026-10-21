@@ -1,40 +1,41 @@
 # SAD Midterm Scholarship System
 
-A web-based Student Scholarship Monitoring and Academic Compliance System for the Systems Analysis and Design laboratory examination.
+A browser-based Student Scholarship Monitoring and Academic Compliance System for the Systems Analysis and Design laboratory examination.
 
 ## Technology
-- HTML, CSS, JavaScript
-- Supabase Auth and PostgreSQL with Row Level Security
-- GitHub Pages for static hosting (optional)
+- HTML, CSS, and JavaScript
+- Supabase Authentication and PostgreSQL
+- GitHub Pages for static hosting, if available
 
 ## Roles
-- **Scholar:** submits semester academic summary and evidence reference, views status, and corrects returned submissions.
-- **Scholarship Staff:** registers scholars, verifies submissions, evaluates compliance using database policy records, records renewal decisions, and views audit history.
+- **Scholar:** submits a semester academic summary, views submission status, and corrects returned submissions.
+- **Scholarship Staff:** registers scholars, verifies submissions, evaluates compliance using assigned scholarship policies, records renewal decisions, and views audit history.
 
 ## Academic policy
-The registrar remains the source of official grades. This application tracks submitted summaries and compliance; it does not change official grades or release scholarship payments.
+The Registrar remains the source of official grades. This system monitors submitted academic summaries and scholarship compliance. It does not change official grades or release scholarship payments.
 
-## Deadline
-November 6, 2026 at 5:00 PM Asia/Manila.
+## Required policy rules
+- **Excellence Scholar:** maximum GWA 2.00, at least 18 units, no failed subjects, no INC grades, and no dropped subjects.
+- **Access Scholar:** maximum GWA 2.50, at least 15 units, no failed subjects, no INC grades, and at most one dropped subject.
+- Submission deadline: November 6, 2026 at 5:00 PM, Asia/Manila time.
 
-## Important files
-- index.html — login page
-- dashboard.html — role-based dashboard
-- css/style.css — responsive styling
-- js/supabase.js — Supabase client configuration
-- js/auth.js — sign-in/sign-out
-- js/dashboard.js — scholar and staff workflows
-- supabase/schema.sql — database tables, security policies, policy data, and staff-only workflow functions
-- supabase/test-data.sql — optional synthetic records B01–B06 for a development/test database only
-- docs/SETUP.md — setup instructions
-- docs/ANALYSIS-REPORT.md — analysis and design report draft
-- docs/DIAGRAMS.md — Mermaid use case and ERD diagrams
-- docs/TEST-CASES.md — test cases TC01–TC10
+## Main files
+- `index.html` — sign-in page
+- `dashboard.html` — scholar and staff dashboard
+- `css/style.css` — page styling
+- `js/supabase.js` — Supabase project URL and anon/publishable key
+- `js/auth.js` — sign-in workflow
+- `js/dashboard.js` — submission, verification, evaluation, renewal, dashboard, and history workflows
+- `docs/ANALYSIS-REPORT.md` — analysis and design report
+- `docs/DIAGRAMS.md` — use case diagram and ERD
+- `docs/TEST-CASES.md` — required test cases TC01–TC10
+- `docs/SETUP.md` — setup and run instructions
 
 ## Setup
-Follow docs/SETUP.md. First run supabase/schema.sql in a new Supabase project, then set the project URL and anon/publishable key in js/supabase.js. Do not put a service-role key in frontend code.
+Follow `docs/SETUP.md`. The database SQL is supplied separately and should be run in the project's Supabase SQL Editor. Replace the placeholders in `js/supabase.js` with the project's URL and anon/publishable key. Never put a service-role key or password in frontend code.
 
-## Known limitations
-- Evidence is currently stored as a document reference; actual file upload/private storage is not included.
-- Test the project using synthetic data and complete all TC01–TC10 results before submission.
-- The front end and database scripts have been added to the repository, but they still require configuration and end-to-end testing in your Supabase project.
+## Testing status
+The source code requires configuration and end-to-end testing in the user's Supabase project. Do not report a test as passed until it has actually been run and evidence has been recorded. Use synthetic student records only.
+
+## Known limitation
+The evidence field stores a grade-document reference; actual file upload/private storage is not included in this MVP.
