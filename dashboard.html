@@ -30,7 +30,7 @@
         <div><label for="failed">Failed subjects</label><input id="failed" type="number" min="0" step="1" value="0" required></div>
         <div><label for="incompletes">Incomplete (INC)</label><input id="incompletes" type="number" min="0" step="1" value="0" required></div>
         <div><label for="dropped">Dropped subjects</label><input id="dropped" type="number" min="0" step="1" value="0" required></div>
-        <div class="span-two"><label for="evidence">Evidence document reference</label><input id="evidence" type="text" maxlength="500" required placeholder="Paste a private file link or document reference"><small>Do not paste public links containing sensitive personal information.</small></div>
+        <div class="span-two"><label for="evidence">Evidence document reference</label><input id="evidence" type="text" maxlength="500" required placeholder="e.g. grade-doc-B01.pdf"><small>Do not paste public links containing sensitive personal information.</small></div>
         <div class="span-two"><button class="primary" type="submit">Submit academic summary</button> <button id="cancel-edit" class="secondary hidden" type="button">Cancel correction</button></div>
       </form>
     </section>
@@ -49,22 +49,26 @@
       </div>
       <section class="panel">
         <h2>Register scholar</h2>
-        <p class="muted">Create the scholar record first. The scholar's login must be linked separately by the project owner in Supabase.</p>
+        <p class="muted">Create the scholar record and assign a scholarship policy. Link the scholar login in Supabase Auth after registration.</p>
         <form id="register-scholar-form" class="form-grid">
-          <div><label for="reg-student-id">Student ID</label><input id="reg-student-id" required maxlength="40"></div>
+          <div><label for="reg-student-id">Student ID</label><input id="reg-student-id" required maxlength="40" placeholder="e.g. B01"></div>
           <div><label for="reg-full-name">Full name</label><input id="reg-full-name" required maxlength="150"></div>
-          <div><label for="reg-program">Program</label><input id="reg-program" required maxlength="100" placeholder="e.g. BSIT"></div>
+          <div><label for="reg-program">Degree program</label><input id="reg-program" required maxlength="100" placeholder="e.g. BSIT"></div>
           <div><label for="reg-policy">Scholarship policy</label><select id="reg-policy" required><option value="">Choose policy</option><option value="Excellence Scholar">Excellence Scholar</option><option value="Access Scholar">Access Scholar</option></select></div>
           <div class="span-two"><button class="primary" type="submit">Register scholar</button></div>
         </form>
       </section>
       <section class="panel">
-        <div class="section-heading"><div><h2>Scholar records</h2><p class="muted">Search by student ID or name and filter by compliance status.</p></div><button id="refresh-staff" class="secondary">Refresh</button></div>
-        <div class="toolbar"><input id="search-scholars" type="search" placeholder="Search student ID or name"><select id="filter-compliance"><option value="">All compliance statuses</option><option>Pending</option><option>Compliant</option><option>With Deficiency</option></select></div>
+        <div class="section-heading"><div><h2>Scholar records</h2><p class="muted">Search by student ID or name. Filter by program or compliance status.</p></div><button id="refresh-staff" class="secondary">Refresh</button></div>
+        <div class="toolbar">
+          <input id="search-scholars" type="search" placeholder="Search student ID or name">
+          <select id="filter-program"><option value="">All programs</option></select>
+          <select id="filter-compliance"><option value="">All compliance statuses</option><option>Pending</option><option>Compliant</option><option>With Deficiency</option></select>
+        </div>
         <div id="staff-records" class="table-wrap"></div>
       </section>
       <section class="panel">
-        <div class="section-heading"><div><h2>Audit history</h2><p class="muted">Recent verification, evaluation, submission, and renewal actions.</p></div><button id="refresh-audit" class="secondary">Refresh history</button></div>
+        <div class="section-heading"><div><h2>Audit history</h2><p class="muted">Verification, evaluation, submission, and renewal actions with actor and timestamp (exam requirement).</p></div><button id="refresh-audit" class="secondary">Refresh history</button></div>
         <div id="audit-records" class="table-wrap"></div>
       </section>
     </section>
