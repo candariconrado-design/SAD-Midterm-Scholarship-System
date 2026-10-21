@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard | Scholarship Compliance</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="js/supabase.js"></script>
+  <script defer src="js/dashboard.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="wordmark" href="dashboard.html"><span class="brand-mark small-mark">SC</span> Scholarship Compliance</a>
+    <div class="user-tools"><span id="user-label" class="muted"></span><button id="logout-btn" class="secondary">Sign out</button></div>
+  </header>
+  <main class="container">
+    <section class="page-heading">
+      <div><p class="eyebrow">ACADEMIC YEAR 2026–2027 · SEMESTER 1</p><h1 id="welcome-title">Dashboard</h1><p id="role-description" class="muted">Loading your workspace…</p></div>
+      <span id="role-chip" class="chip">Loading</span>
+    </section>
+    <p id="page-message" class="message" role="status"></p>
+
+    <section id="scholar-panel" class="panel hidden">
+      <h2>Submit academic summary</h2>
+      <p class="muted">Enter the semester summary shown on your official academic record. The registrar remains the source of official grades.</p>
+      <form id="submission-form" class="form-grid">
+        <div><label for="gwa">GWA (1.00–5.00)</label><input id="gwa" type="number" min="1" max="5" step="0.01" required></div>
+        <div><label for="units">Units completed</label><input id="units" type="number" min="0" step="1" required></div>
+        <div><label for="failed">Failed subjects</label><input id="failed" type="number" min="0" step="1" value="0" required></div>
+        <div><label for="incompletes">Incomplete (INC)</label><input id="incompletes" type="number" min="0" step="1" value="0" required></div>
+        <div><label for="dropped">Dropped subjects</label><input id="dropped" type="number" min="0" step="1" value="0" required></div>
+        <div class="span-two"><label for="evidence">Evidence document reference</label><input id="evidence" type="text" maxlength="500" required placeholder="Paste a private file link or document reference"><small>Do not paste public links containing sensitive personal information.</small></div>
+        <div class="span-two"><button class="primary" type="submit">Submit academic summary</button></div>
+      </form>
+    </section>
+
+    <section id="scholar-records-panel" class="panel hidden">
+      <div class="section-heading"><h2>My submissions</h2><button id="refresh-scholar" class="secondary">Refresh</button></div>
+      <div id="scholar-records" class="table-wrap"></div>
+    </section>
+
+    <section id="staff-panel" class="hidden">
+      <div class="metrics">
+        <article class="metric"><span>Assigned scholars</span><strong id="metric-assigned">—</strong></article>
+        <article class="metric"><span>Pending verification</span><strong id="metric-pending">—</strong></article>
+        <article class="metric"><span>Compliant</span><strong id="metric-compliant">—</strong></article>
+        <article class="metric"><span>With deficiency</span><strong id="metric-deficiency">—</strong></article>
+      </div>
+      <section class="panel">
+        <div class="section-heading"><div><h2>Scholar records</h2><p class="muted">Search by student ID or name and filter by compliance status.</p></div><button id="refresh-staff" class="secondary">Refresh</button></div>
+        <div class="toolbar"><input id="search-scholars" type="search" placeholder="Search student ID or name"><select id="filter-compliance"><option value="">All compliance statuses</option><option>Pending</option><option>Compliant</option><option>With Deficiency</option></select></div>
+        <div id="staff-records" class="table-wrap"></div>
+      </section>
+    </section>
+    <footer>Student Scholarship Monitoring and Academic Compliance System · Midterm MVP</footer>
+  </main>
+</body>
+</html>
