@@ -174,7 +174,7 @@ async function handleStaffAction(action,id){
    const result=await supabaseClient.rpc("staff_decide_renewal",{p_submission_id:id,p_decision:action==="approve"?"Approved":"Held",p_reason:reason});
    if(result.error)throw result.error;
   }
-  showMessage("Action saved successfully.",true);await loadStaffDashboard();
+  showMessage("Action saved successfully.",true);await loadStaffDashboard();await loadAuditHistory();
  }catch(e){showMessage(e.message||"Action failed.");}
 }
 function badge(value){
