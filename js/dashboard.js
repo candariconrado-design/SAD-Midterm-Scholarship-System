@@ -43,7 +43,17 @@ document.addEventListener("DOMContentLoaded", async function(){
   }catch(e){showMessage(e.message||"Could not load dashboard.");}
 });
 function byId(id){return document.getElementById(id);}
-function showMessage(msg,success){const el=byId("page-message");if(!el)return;el.textContent=msg||"";el.classList.toggle("success",!!success);}
+function showMessage(msg,success){
+  const el=byId("page-message");
+  if(!el)return;
+  el.textContent=msg||"";
+  el.classList.toggle("success",!!success);
+  if(msg) el.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+function rpcError(err){
+  if(!err) return "Action failed.";
+  return err.message || err.hint || err.details || String(err);
+}
 async function logout(){await supabaseClient.auth.signOut();location.href="index.html";}
 function numberValue(id,integer){
  const v=Number(byId(id).value);
@@ -105,7 +115,7 @@ async function submitAcademicSummary(ev){
   editingSubmissionId=null;byId("submission-heading").textContent="Submit academic summary";byId("cancel-edit").classList.add("hidden");
   form.reset();byId("failed").value="0";byId("incompletes").value="0";byId("dropped").value="0";
   showMessage("Academic summary submitted for verification.",true);await loadScholarSubmissions();
- }catch(e){showMessage(e.message||"Submission failed.");}finally{btn.disabled=false;}
+ }catch(e){showMessage(rpcError(e));}finally{btn.disabled=false;}
 }
 async function loadScholarSubmissions(){
  if(!currentScholar)return;
@@ -125,7 +135,7 @@ async function loadScholarSubmissions(){
 }
 async function beginCorrection(id){
  const result=await supabaseClient.from("grade_submissions").select("*").eq("id",id).eq("submission_status","Returned").single();
- if(result.error){showMessage(result.error.message);return;}
+ if(result.error){showMessage(rpcError(result.error));return;}
  const r=result.data;editingSubmissionId=id;
  byId("gwa").value=r.gwa;byId("units").value=r.units_enrolled;byId("failed").value=r.failed_subjects;
  byId("incompletes").value=r.incomplete_subjects;byId("dropped").value=r.dropped_subjects;byId("evidence").value=r.evidence_reference;
@@ -146,7 +156,7 @@ async function registerScholar(ev){
   if(result.error){if(result.error.code==="23505")throw new Error("That student ID is already registered.");throw result.error;}
   await supabaseClient.from("audit_logs").insert({actor_id:currentUser.id,action:"REGISTER_SCHOLAR",entity_type:"scholar",details:{student_id:payload.student_id,policy:byId("reg-policy").value}});
   form.reset();showMessage("Scholar record registered. Link the scholar login in Supabase using the setup guide.",true);await loadStaffDashboard();await loadAuditHistory();
- }catch(e){showMessage(e.message||"Could not register scholar.");}finally{btn.disabled=false;}
+ }catch(e){showMessage(rpcError(e));}finally{btn.disabled=false;}
 }
 async function loadAuditHistory(){
  const box=byId("audit-records");if(!box)return;
@@ -211,8 +221,10 @@ function renderStaffRows(){
   if(r.submission_status==="Verified"&&(!r.compliance_status||r.compliance_status==="Pending"))actions+='<button class="secondary" data-action="evaluate" data-id="'+r.id+'">Evaluate</button>';
   if(r.submission_status==="Verified"&&r.compliance_status==="Compliant")actions+='<button class="primary" data-action="approve" data-id="'+r.id+'">Approve</button>';
   if(r.submission_status==="Verified"&&r.compliance_status&&r.compliance_status!=="Pending")actions+='<button class="secondary" data-action="hold" data-id="'+r.id+'">Hold</button>';
-  html+="<tr><td><strong>"+esc(s.full_name||"Unknown")+"</strong><div class='reason'>"+esc(s.student_id||"")+" · "+esc(s.degree_program||"")+"</div></td><td>"+esc(policy)+"</td><td>GWA "+Number(r.gwa).toFixed(2)+"<div class='reason'>"+r.units_enrolled+" units · Failed "+r.failed_subjects+" · INC "+r.incomplete_subjects+" · Dropped "+r.dropped_subjects+"</div><div class='reason'>"+esc(r.evidence_reference)+"</div><div class='reason'>Submitted: "+esc(formatManila(r.submitted_at))+"</div></td><td>"+badge(r.submission_status)+(r.verification_reason?"<div class='reason'>"+esc(r.verification_reason)+"</div>":"")+"</td><td>"+badge(r.compliance_status)+"<div class='reason'>"+esc(reasons)+"</div></td><td>"+badge(renewal)+"</td><td class='actions'>"+actions+"</td></tr>";
+  html+="<tr><td><strong>"+esc(s.full_name||"Unknown")+"</strong><div class='reason'>"+esc(s.student_id||"")+" · "+esc(s.degree_program||"")+"</div></td><td>"+esc(policy)+"</td><td>GWA "+Number(r.gwa).toFixed(2)+"<div class='reason'>"+r.units_enrolled+" units · Failed "+r.failed_subjects+" · INC "+r.incomplete_subjects+" · Dropped "+r.dropped_subjects+"</div><div class='reason'>"+esc(r.evidence_reference)+"</div><div class='reason'>Submitted: "+esc(formatManila(r.submitted_at))+"</div></td><td>"+badge(r.submission_status)+(r.verification_reason?"<div class='reason'>"+esc(r.verification_reason)+"</div>":"")+"</td><td>"+badge(r.compliance_status)+"<div class='reason'>"+esc(reasons)+"</div></td><td>"+badge(renewal)+"</td><td class='actions'>"+(actions||"<")+"</td></tr>";
  });
+ // fix empty actions display
+ html=html.replace(/class='actions'><</g,"class='actions'>—<");
  box.innerHTML=html+"</tbody></table>";
  box.querySelectorAll("button[data-action]").forEach(function(btn){btn.addEventListener("click",function(){handleStaffAction(btn.dataset.action,btn.dataset.id);});});
 }
@@ -221,23 +233,33 @@ async function handleStaffAction(action,id){
  try{
   if(action==="verify"||action==="return"){
    const reason=action==="return"?prompt("Enter the reason for returning this submission:"):null;
-   if(action==="return"&&(!reason||!reason.trim()))return;
+   if(action==="return"&&(!reason||!reason.trim())){showMessage("Return requires a reason.");return;}
    const result=await supabaseClient.rpc("staff_verify_submission",{p_submission_id:id,p_decision:action==="verify"?"Verified":"Returned",p_reason:reason});
    if(result.error)throw result.error;
+   showMessage(action==="verify"?"Evidence marked Verified.":"Submission returned for correction.",true);
   }else if(action==="evaluate"){
    const result=await supabaseClient.rpc("staff_evaluate_submission",{p_submission_id:id});
    if(result.error)throw result.error;
-   const status=(result.data&&result.data.status)||"done";
+   let status="done";
+   if(result.data){
+     if(typeof result.data==="string") status=result.data;
+     else if(result.data.status) status=result.data.status;
+   }
    showMessage("Evaluation completed: "+status+".",true);
   }else if(action==="approve"||action==="hold"){
    const reason=action==="hold"?prompt("Reason for holding renewal:"):null;
-   if(action==="hold"&&(!reason||!reason.trim()))return;
+   if(action==="hold"&&(!reason||!reason.trim())){showMessage("Hold requires a reason.");return;}
    if(!confirm(action==="approve"?"Approve renewal for this compliant submission?":"Hold renewal for this scholar?"))return;
    const result=await supabaseClient.rpc("staff_decide_renewal",{p_submission_id:id,p_decision:action==="approve"?"Approved":"Held",p_reason:reason});
    if(result.error)throw result.error;
+   showMessage(action==="approve"?"Renewal approved.":"Renewal held.",true);
   }
-  showMessage("Action saved successfully.",true);await loadStaffDashboard();await loadAuditHistory();
- }catch(e){showMessage(e.message||"Action failed.");}
+  await loadStaffDashboard();
+  await loadAuditHistory();
+ }catch(e){
+  console.error("Staff action failed", action, id, e);
+  showMessage(rpcError(e));
+ }
 }
 function badge(value){
  const cls=["Compliant","Approved","Verified"].includes(value)?"good":(["With Deficiency","Returned","Held"].includes(value)?"bad":"wait");
