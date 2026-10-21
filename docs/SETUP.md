@@ -35,6 +35,18 @@
      and p.policy_name = 'Access Scholar';
    ```
 
+### Link an existing scholar login to a scholar record
+If you registered a scholar in the staff dashboard first, link their already-created Supabase Auth account in the SQL Editor:
+```sql
+update public.scholars
+set user_id = (select id from auth.users where email = 'scholar@example.com')
+where student_id = '2026-0001';
+```
+Use the actual email and student ID. A scholar login must be linked to a record before they can submit.
+
+### Optional synthetic test records
+In a development/test project only, run supabase/test-data.sql after schema.sql to create B01–B06. These are test-only records with no linked scholar accounts. Staff can verify B01–B05 and evaluate them; keep B06 pending to test the verification gate. Do not seed test records into a production database.
+
 ## 4. Open and host the site
 - For quick testing, use a local static server or open `index.html` in a browser. Authentication/database access requires the Supabase project to be configured.
 - For GitHub Pages: repository **Settings → Pages → Deploy from a branch → main → /(root) → Save**. Wait for deployment, then open the Pages URL.
