@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scholarship Compliance System</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="js/supabase.js"></script>
+  <script defer src="js/auth.js"></script>
+</head>
+<body class="auth-page">
+  <main class="auth-card">
+    <div class="brand-mark">SC</div>
+    <p class="eyebrow">STUDENT SERVICES</p>
+    <h1>Scholarship Compliance</h1>
+    <p class="muted">Sign in to submit academic records or manage scholarship compliance.</p>
+    <form id="login-form">
+      <label for="email">Email address</label>
+      <input id="email" type="email" autocomplete="username" required placeholder="you@example.com">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required placeholder="Enter your password">
+      <button class="primary full" type="submit">Sign in</button>
+      <p id="login-message" class="message" role="status"></p>
+    </form>
+    <p class="small muted">Access is provided by your scholarship office. Contact staff if you need an account.</p>
+  </main>
+</body>
+</html>
