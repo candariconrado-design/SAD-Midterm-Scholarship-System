@@ -27,3 +27,23 @@ Use synthetic records only. Record the input, expected result, actual result, pa
 | B06 | Access | 2.25 | 15 | 0 | 0 | 0 | Pending verification | Evaluation/approval blocked |
 
 Note: To test exact deadline timing reliably, use a controlled test database or test-only timestamp. Do not alter real student records to simulate dates.
+
+
+## Execution Results Template
+
+Fill the actual result, status, and evidence filename after running each test. These cases are currently marked Not Run until actual results are recorded.
+
+| Test ID | Actual result | Pass/Fail/Blocked | Evidence filename |
+|---|---|---|---|
+| TC01 | Not run | Not Run | — |
+| TC02 | Not run | Not Run | — |
+| TC03 | Not run | Not Run | — |
+| TC04 | Not run | Not Run | — |
+| TC05 | Not run | Not Run | — |
+| TC06 | Not run | Not Run | — |
+| TC07 | Not run | Not Run | — |
+| TC08 | Not run | Not Run | — |
+| TC09 | Not run | Not Run | — |
+| TC10 | Not run | Not Run | — |
+
+Do not mark a test as passed without running it against the configured website and database. Use synthetic records only.
