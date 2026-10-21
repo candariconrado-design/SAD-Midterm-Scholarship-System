@@ -20,8 +20,8 @@ document.addEventListener("DOMContentLoaded", async function(){
     if(pr.error) throw pr.error;
     currentRole=pr.data.role;
     byId("user-label").textContent=pr.data.full_name || currentUser.email;
-    byId("role-chip").textContent=currentRole==="staff"?"Scholarship Staff":"Scholar";
-    if(currentRole==="staff"){
+    byId("role-chip").textContent=currentRole==="admin"?"Administrator":(currentRole==="staff"?"Scholarship Staff":"Scholar");
+    if(currentRole==="staff"||currentRole==="admin"){
       byId("welcome-title").textContent="Staff dashboard";
       byId("role-description").textContent="Verify submissions, evaluate compliance, and record renewal decisions.";
       byId("staff-panel").classList.remove("hidden");
