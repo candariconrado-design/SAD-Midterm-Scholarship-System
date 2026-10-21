@@ -165,8 +165,10 @@ Primary keys: profiles.user_id; scholarship_policies.id; scholars.id; academic_s
 | FR-07 | Scholarship Staff | Evaluate Compliance | BR-01–05 | staff_evaluate_submission database function | TC01–TC06 | Correct policy-based status and reasons |
 | FR-09 | Scholarship Staff | Record Renewal Decision | BR-06 | Staff dashboard / staff_decide_renewal | TC10 | Only compliant record can be approved |
 
-## Known implementation gaps to verify before submission
-- Actual file upload and private storage are not implemented; current MVP stores a document reference.
-- A complete scholar registration form is not yet present in the dashboard; staff can register a scholar through a protected database/admin workflow.
-- A dedicated audit-history screen is not yet present, although key workflow actions write audit rows.
-- Complete and record all TC01–TC10 results using the configured Supabase test project.
+## Implementation status and limitations
+
+The repository includes the sign-in page, role-based dashboard, scholar submission and correction form, staff registration and review interface, dashboard metrics, search/filter controls, and audit-history interface. These screens still require configuration and end-to-end testing against the Supabase project before they can be described as fully working.
+
+- The evidence field stores a grade-document reference; actual file upload/private storage is not implemented.
+- Create and record actual results for TC01–TC10 after configuring Supabase. Do not claim tests passed before they are run.
+- Confirm that the final database schema, frontend table/field names, and role policies match before running the SQL or demonstrating the system.
