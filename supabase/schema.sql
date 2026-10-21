@@ -209,3 +209,33 @@ $$;
 grant execute on function public.staff_verify_submission(uuid,text,text) to authenticated;
 grant execute on function public.staff_evaluate_submission(uuid) to authenticated;
 grant execute on function public.staff_decide_renewal(uuid,text,text) to authenticated;
+
+
+-- On a scholar's correction, reset verification/evaluation fields and record a fresh submission time.
+create or replace function public.reset_returned_submission_for_resubmission()
+returns trigger language plpgsql security definer set search_path=public
+as $$
+begin
+ if auth.uid() is not null and not public.is_staff() then
+   if old.verification_status <> 'Returned' then
+     raise exception 'Scholars may only edit a returned submission.';
+   end if;
+   if not exists(select 1 from public.scholars s where s.id=old.scholar_id and s.user_id=auth.uid()) then
+     raise exception 'You can only correct your own submission.';
+   end if;
+   new.submitted_at := now();
+   new.verification_status := 'Pending Verification';
+   new.verification_reason := null;
+   new.verified_by := null;
+   new.verified_at := null;
+   new.compliance_status := 'Pending';
+   new.deficiency_reasons := '[]'::jsonb;
+   new.evaluated_by := null;
+   new.evaluated_at := null;
+ end if;
+ return new;
+end;
+$$;
+drop trigger if exists reset_returned_submission on public.academic_submissions;
+create trigger reset_returned_submission before update on public.academic_submissions
+for each row execute procedure public.reset_returned_submission_for_resubmission();
