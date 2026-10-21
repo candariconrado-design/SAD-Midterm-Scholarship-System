@@ -148,22 +148,17 @@ Required UML relationships to draw:
 
 ### ERD (logical relationships)
 - AUTH_USERS 1 — 1 PROFILES
-- AUTH_USERS 0..1 — 0..1 SCHOLARS (linked login)
-- SCHOLARSHIP_POLICIES 1 — many SCHOLARS
-- SCHOLARS 1 — many ACADEMIC_SUBMISSIONS
-- ACADEMIC_SUBMISSIONS 1 — 0..1 RENEWAL_DECISIONS
+- AUTH_USERS 0..1 — 0..1 SCHOLARS through nullable `scholars.user_id`
+- SCHOLARSHIP_PROGRAMS 1 — many SCHOLARS
+- SCHOLARS 1 — many GRADE_SUBMISSIONS
+- GRADE_SUBMISSIONS 1 — 0..1 RENEWAL_DECISIONS
 - AUTH_USERS 1 — many AUDIT_LOGS
 
-Primary keys: profiles.user_id; scholarship_policies.id; scholars.id; academic_submissions.id; renewal_decisions.id; audit_logs.id. Foreign keys connect profiles/scholars to auth users, scholars to policy, submissions to scholar, and decisions to submission.
+Actual table names in the current schema are `profiles`, `scholarship_programs`, `scholars`, `grade_submissions`, `renewal_decisions`, and `audit_logs`. Compliance status and deficiency reasons are stored on `grade_submissions`, not in a separate compliance-evaluations table.
 
-## A6. Requirements Traceability (initial draft)
+## A6. Requirements Traceability
 
-| FR | Actor | Use case | BR | Implemented screen/function | Test | Expected result |
-|---|---|---|---|---|---|---|
-| FR-03 | Scholar | Submit Academic Summary | BR-03 | Dashboard submission form | TC07 | Valid data saves; invalid values rejected |
-| FR-05 | Scholarship Staff | Verify Submission | BR-05 | Staff dashboard / staff_verify_submission | TC06 | Pending can be verified or returned with reason |
-| FR-07 | Scholarship Staff | Evaluate Compliance | BR-01–05 | staff_evaluate_submission database function | TC01–TC06 | Correct policy-based status and reasons |
-| FR-09 | Scholarship Staff | Record Renewal Decision | BR-06 | Staff dashboard / staff_decide_renewal | TC10 | Only compliant record can be approved |
+The full matrix is maintained in `docs/TRACEABILITY-MATRIX.md`. It maps all ten functional requirements to actors, use cases, business rules, implementation areas, test IDs, and expected results. The execution-results template currently marks all tests Not Run until they have been executed and evidence recorded.
 
 ## Implementation status and limitations
 
