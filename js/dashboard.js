@@ -17,13 +17,17 @@ document.addEventListener("DOMContentLoaded", async function () {
   safeOn("filter-program", "change", renderStaffRows);
 
   try {
-    if (
-      typeof SUPABASE_URL === "undefined" ||
-      SUPABASE_URL.includes("YOUR-PROJECT") ||
-      SUPABASE_ANON_KEY.includes("YOUR_SUPABASE")
-    ) {
-      throw new Error("Configure Supabase in js/supabase.js first.");
+    if (typeof window.supabase === "undefined") {
+      throw new Error("Supabase library failed to load. Check your internet connection.");
     }
+    if (typeof SUPABASE_URL === "undefined" || !SUPABASE_URL || SUPABASE_URL.indexOf("YOUR-PROJECT") !== -1) {
+      throw new Error("Configure Supabase URL in js/supabase.js first.");
+    }
+    if (typeof supabaseClient === "undefined") {
+      throw new Error("supabaseClient missing. Check js/supabase.js.");
+    }
+
+    byId("role-description").textContent = "Checking session…";
 
     const sessionResult = await supabaseClient.auth.getSession();
     if (sessionResult.error) throw sessionResult.error;
@@ -33,16 +37,35 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
 
     currentUser = sessionResult.data.session.user;
+    byId("user-label").textContent = currentUser.email || currentUser.id;
+    byId("role-description").textContent = "Loading profile…";
 
     const pr = await supabaseClient
       .from("profiles")
       .select("full_name,role")
       .eq("id", currentUser.id)
-      .single();
+      .maybeSingle();
 
-    if (pr.error) throw pr.error;
+    if (pr.error) {
+      throw new Error("Profile query failed: " + (pr.error.message || JSON.stringify(pr.error)));
+    }
 
-    currentRole = (pr.data.role || "scholar").toLowerCase();
+    if (!pr.data) {
+      byId("role-chip").textContent = "No profile";
+      byId("welcome-title").textContent = "Profile missing";
+      byId("role-description").textContent =
+        "No row in profiles for this login. Run the SQL below in Supabase.";
+      showMessage(
+        "No profile found for user " +
+          currentUser.id +
+          ". In SQL Editor run: INSERT INTO profiles (id, full_name, role) VALUES ('" +
+          currentUser.id +
+          "', 'Scholarship Staff', 'staff') ON CONFLICT (id) DO UPDATE SET role = 'staff';"
+      );
+      return;
+    }
+
+    currentRole = String(pr.data.role || "scholar").toLowerCase().trim();
     byId("user-label").textContent = pr.data.full_name || currentUser.email;
     byId("role-chip").textContent =
       currentRole === "admin"
@@ -70,26 +93,25 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       const sr = await supabaseClient
         .from("scholars")
-        .select(
-          "id,student_id,full_name,degree_program,scholarship_programs(program_name)"
-        )
+        .select("id,student_id,full_name,degree_program,scholarship_programs(program_name)")
         .eq("user_id", currentUser.id)
         .maybeSingle();
 
-      if (sr.error) throw sr.error;
+      if (sr.error) throw new Error("Scholar link query failed: " + sr.error.message);
       currentScholar = sr.data;
 
       if (!currentScholar) {
         byId("scholar-panel").classList.add("hidden");
-        showMessage(
-          "Your account is not linked to a scholar record yet. Contact Scholarship Staff."
-        );
+        showMessage("Your account is not linked to a scholar record yet. Contact Scholarship Staff.");
       }
       await loadScholarSubmissions();
     }
   } catch (e) {
-    console.error(e);
-    showMessage(e.message || "Could not load dashboard.");
+    console.error("Dashboard init error", e);
+    byId("role-chip").textContent = "Error";
+    byId("welcome-title").textContent = "Could not load";
+    byId("role-description").textContent = e.message || "Unknown error";
+    showMessage(e.message || "Could not load dashboard. Open F12 Console for details.");
   }
 });
 
@@ -122,11 +144,9 @@ async function logout() {
 function numberValue(id, integer) {
   const v = Number(byId(id).value);
   if (!Number.isFinite(v)) throw new Error("Enter a valid number.");
-  if (integer && !Number.isInteger(v))
-    throw new Error("Units and subject counts must be whole numbers.");
+  if (integer && !Number.isInteger(v)) throw new Error("Units and subject counts must be whole numbers.");
   if (v < 0) throw new Error("Units and subject counts cannot be negative.");
-  if (id === "gwa" && (v < 1 || v > 5))
-    throw new Error("GWA must be between 1.00 and 5.00.");
+  if (id === "gwa" && (v < 1 || v > 5)) throw new Error("GWA must be between 1.00 and 5.00.");
   return v;
 }
 
@@ -171,10 +191,7 @@ function formatDetails(details) {
   if (details.student_id) parts.push("Student: " + details.student_id);
   if (details.policy) parts.push("Policy: " + details.policy);
   if (details.academic_year)
-    parts.push(
-      details.academic_year +
-        (details.semester ? " Sem " + details.semester : "")
-    );
+    parts.push(details.academic_year + (details.semester ? " Sem " + details.semester : ""));
   if (!parts.length) return esc(JSON.stringify(details));
   return esc(parts.join(" · "));
 }
@@ -209,30 +226,22 @@ async function submitAcademicSummary(ev) {
       evaluated_at: null,
       deficiency_reasons: [],
     };
-    if (!payload.evidence_reference)
-      throw new Error("Enter the evidence document reference.");
+    if (!payload.evidence_reference) throw new Error("Enter the evidence document reference.");
 
     let res;
     if (editingSubmissionId) {
-      res = await supabaseClient
-        .from("grade_submissions")
-        .update(payload)
-        .eq("id", editingSubmissionId);
+      res = await supabaseClient.from("grade_submissions").update(payload).eq("id", editingSubmissionId);
     } else {
       res = await supabaseClient.from("grade_submissions").insert(payload);
     }
-
     if (res.error) {
-      if (res.error.code === "23505")
-        throw new Error("A submission already exists for this semester.");
+      if (res.error.code === "23505") throw new Error("A submission already exists for this semester.");
       throw res.error;
     }
 
     await supabaseClient.from("audit_logs").insert({
       actor_id: currentUser.id,
-      action: editingSubmissionId
-        ? "RESUBMIT_CORRECTED_ACADEMIC_SUMMARY"
-        : "SUBMIT_ACADEMIC_SUMMARY",
+      action: editingSubmissionId ? "RESUBMIT_CORRECTED_ACADEMIC_SUMMARY" : "SUBMIT_ACADEMIC_SUMMARY",
       entity_type: "academic_submission",
       entity_id: editingSubmissionId || null,
       details: { academic_year: "2026-2027", semester: 1 },
@@ -259,15 +268,11 @@ async function loadScholarSubmissions() {
   const box = byId("scholar-records");
   if (!box) return;
   box.innerHTML = "<p class='muted'>Loading submissions...</p>";
-
   const res = await supabaseClient
     .from("grade_submissions")
-    .select(
-      "id,academic_year,semester,gwa,units_enrolled,submission_status,verification_reason,compliance_status,deficiency_reasons,submitted_at,renewal_decisions(decision,reason)"
-    )
+    .select("id,academic_year,semester,gwa,units_enrolled,submission_status,verification_reason,compliance_status,deficiency_reasons,submitted_at,renewal_decisions(decision,reason)")
     .eq("scholar_id", currentScholar.id)
     .order("submitted_at", { ascending: false });
-
   if (res.error) {
     box.textContent = res.error.message;
     return;
@@ -276,23 +281,13 @@ async function loadScholarSubmissions() {
     box.innerHTML = "<p class='muted'>No submissions yet.</p>";
     return;
   }
-
-  let html =
-    "<table><thead><tr><th>Term</th><th>GWA</th><th>Verification</th><th>Compliance</th><th>Renewal</th><th>Submitted</th></tr></thead><tbody>";
-
+  let html = "<table><thead><tr><th>Term</th><th>GWA</th><th>Verification</th><th>Compliance</th><th>Renewal</th><th>Submitted</th></tr></thead><tbody>";
   res.data.forEach(function (r) {
-    const reasons = Array.isArray(r.deficiency_reasons)
-      ? r.deficiency_reasons.join(" ")
-      : "";
-    const renewal =
-      r.renewal_decisions && r.renewal_decisions[0]
-        ? r.renewal_decisions[0].decision
-        : "Not decided";
+    const reasons = Array.isArray(r.deficiency_reasons) ? r.deficiency_reasons.join(" ") : "";
+    const renewal = r.renewal_decisions && r.renewal_decisions[0] ? r.renewal_decisions[0].decision : "Not decided";
     const correction =
       r.submission_status === "Returned"
-        ? '<button class="secondary" type="button" data-correct="' +
-          r.id +
-          '">Correct and resubmit</button>'
+        ? '<button class="secondary" type="button" data-correct="' + r.id + '">Correct and resubmit</button>'
         : "";
     html +=
       "<tr><td>" +
@@ -303,9 +298,7 @@ async function loadScholarSubmissions() {
       Number(r.gwa).toFixed(2) +
       "</td><td>" +
       badge(r.submission_status) +
-      (r.verification_reason
-        ? "<div class='reason'>" + esc(r.verification_reason) + "</div>"
-        : "") +
+      (r.verification_reason ? "<div class='reason'>" + esc(r.verification_reason) + "</div>" : "") +
       "</td><td>" +
       badge(r.compliance_status) +
       "<div class='reason'>" +
@@ -318,7 +311,6 @@ async function loadScholarSubmissions() {
       correction +
       "</div></td></tr>";
   });
-
   box.innerHTML = html + "</tbody></table>";
   box.querySelectorAll("button[data-correct]").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -333,9 +325,9 @@ async function beginCorrection(id) {
     .select("*")
     .eq("id", id)
     .eq("submission_status", "Returned")
-    .single();
-  if (result.error) {
-    showMessage(rpcError(result.error));
+    .maybeSingle();
+  if (result.error || !result.data) {
+    showMessage(result.error ? rpcError(result.error) : "Submission not found or not Returned.");
     return;
   }
   const r = result.data;
@@ -371,8 +363,9 @@ async function registerScholar(ev) {
       .select("id")
       .eq("program_name", byId("reg-policy").value)
       .eq("active", true)
-      .single();
+      .maybeSingle();
     if (policy.error) throw policy.error;
+    if (!policy.data) throw new Error("Scholarship policy not found. Seed Excellence/Access programs first.");
 
     const payload = {
       student_id: byId("reg-student-id").value.trim(),
@@ -384,8 +377,7 @@ async function registerScholar(ev) {
 
     const result = await supabaseClient.from("scholars").insert(payload);
     if (result.error) {
-      if (result.error.code === "23505")
-        throw new Error("That student ID is already registered.");
+      if (result.error.code === "23505") throw new Error("That student ID is already registered.");
       throw result.error;
     }
 
@@ -393,17 +385,11 @@ async function registerScholar(ev) {
       actor_id: currentUser.id,
       action: "REGISTER_SCHOLAR",
       entity_type: "scholar",
-      details: {
-        student_id: payload.student_id,
-        policy: byId("reg-policy").value,
-      },
+      details: { student_id: payload.student_id, policy: byId("reg-policy").value },
     });
 
     form.reset();
-    showMessage(
-      "Scholar record registered. Link the scholar login in Supabase using the setup guide.",
-      true
-    );
+    showMessage("Scholar record registered. Link the scholar login in Supabase Auth.", true);
     await loadStaffDashboard();
     await loadAuditHistory();
   } catch (e) {
@@ -417,13 +403,11 @@ async function loadAuditHistory() {
   const box = byId("audit-records");
   if (!box) return;
   box.innerHTML = "<p class='muted'>Loading audit history...</p>";
-
   const result = await supabaseClient
     .from("audit_logs")
     .select("id,actor_id,action,entity_type,entity_id,details,created_at")
     .order("created_at", { ascending: false })
     .limit(50);
-
   if (result.error) {
     box.textContent = result.error.message;
     return;
@@ -432,32 +416,15 @@ async function loadAuditHistory() {
     box.innerHTML = "<p class='muted'>No audit events yet.</p>";
     return;
   }
-
-  const actorIds = [
-    ...new Set(
-      result.data.map(function (r) {
-        return r.actor_id;
-      }).filter(Boolean)
-    ),
-  ];
+  const actorIds = [...new Set(result.data.map(function (r) { return r.actor_id; }).filter(Boolean))];
   let nameMap = {};
   if (actorIds.length) {
-    const names = await supabaseClient
-      .from("profiles")
-      .select("id,full_name")
-      .in("id", actorIds);
-    if (names.data)
-      names.data.forEach(function (p) {
-        nameMap[p.id] = p.full_name;
-      });
+    const names = await supabaseClient.from("profiles").select("id,full_name").in("id", actorIds);
+    if (names.data) names.data.forEach(function (p) { nameMap[p.id] = p.full_name; });
   }
-
-  let html =
-    "<table><thead><tr><th>Time (Manila)</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>";
+  let html = "<table><thead><tr><th>Time (Manila)</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>";
   result.data.forEach(function (r) {
-    const actorName =
-      nameMap[r.actor_id] ||
-      (r.actor_id ? String(r.actor_id).slice(0, 8) + "…" : "System");
+    const actorName = nameMap[r.actor_id] || (r.actor_id ? String(r.actor_id).slice(0, 8) + "…" : "System");
     html +=
       "<tr><td>" +
       esc(formatManila(r.created_at)) +
@@ -481,69 +448,45 @@ async function loadStaffDashboard() {
 
   const sch = await supabaseClient
     .from("scholars")
-    .select(
-      "id,student_id,full_name,degree_program,scholarship_programs(program_name)"
-    );
+    .select("id,student_id,full_name,degree_program,scholarship_programs(program_name)");
   if (sch.error) {
     box.textContent = sch.error.message;
+    showMessage("Scholars query: " + sch.error.message);
     return;
   }
 
   const sub = await supabaseClient
     .from("grade_submissions")
-    .select(
-      "id,scholar_id,academic_year,semester,gwa,units_enrolled,failed_subjects,incomplete_subjects,dropped_subjects,evidence_reference,submitted_at,submission_status,verification_reason,compliance_status,deficiency_reasons,renewal_decisions(decision,reason)"
-    )
+    .select("id,scholar_id,academic_year,semester,gwa,units_enrolled,failed_subjects,incomplete_subjects,dropped_subjects,evidence_reference,submitted_at,submission_status,verification_reason,compliance_status,deficiency_reasons,renewal_decisions(decision,reason)")
     .order("submitted_at", { ascending: false });
   if (sub.error) {
     box.textContent = sub.error.message;
+    showMessage("Submissions query: " + sub.error.message);
     return;
   }
 
   staffRows = (sub.data || []).map(function (s) {
-    s.scholar = (sch.data || []).find(function (x) {
-      return x.id === s.scholar_id;
-    });
+    s.scholar = (sch.data || []).find(function (x) { return x.id === s.scholar_id; });
     return s;
   });
 
-  const mAssigned = byId("metric-assigned");
-  const mPending = byId("metric-pending");
-  const mCompliant = byId("metric-compliant");
-  const mDef = byId("metric-deficiency");
-  if (mAssigned) mAssigned.textContent = (sch.data || []).length;
-  if (mPending)
-    mPending.textContent = staffRows.filter(function (r) {
-      return r.submission_status === "Pending";
-    }).length;
-  if (mCompliant)
-    mCompliant.textContent = staffRows.filter(function (r) {
-      return r.compliance_status === "Compliant";
-    }).length;
-  if (mDef)
-    mDef.textContent = staffRows.filter(function (r) {
-      return r.compliance_status === "With Deficiency";
-    }).length;
+  if (byId("metric-assigned")) byId("metric-assigned").textContent = (sch.data || []).length;
+  if (byId("metric-pending"))
+    byId("metric-pending").textContent = staffRows.filter(function (r) { return r.submission_status === "Pending"; }).length;
+  if (byId("metric-compliant"))
+    byId("metric-compliant").textContent = staffRows.filter(function (r) { return r.compliance_status === "Compliant"; }).length;
+  if (byId("metric-deficiency"))
+    byId("metric-deficiency").textContent = staffRows.filter(function (r) { return r.compliance_status === "With Deficiency"; }).length;
 
   const progSelect = byId("filter-program");
   if (progSelect) {
-    const programs = [
-      ...new Set(
-        (sch.data || [])
-          .map(function (s) {
-            return s.scholarship_programs && s.scholarship_programs.program_name;
-          })
-          .filter(Boolean)
-      ),
-    ];
+    const programs = [...new Set((sch.data || []).map(function (s) {
+      return s.scholarship_programs && s.scholarship_programs.program_name;
+    }).filter(Boolean))];
     const current = progSelect.value;
     progSelect.innerHTML =
       '<option value="">All programs</option>' +
-      programs
-        .map(function (p) {
-          return '<option value="' + esc(p) + '">' + esc(p) + "</option>";
-        })
-        .join("");
+      programs.map(function (p) { return '<option value="' + esc(p) + '">' + esc(p) + "</option>"; }).join("");
     if (current) progSelect.value = current;
   }
 
@@ -554,28 +497,20 @@ function renderStaffRows() {
   const box = byId("staff-records");
   if (!box) return;
 
-  const term = ((byId("search-scholars") && byId("search-scholars").value) || "")
-    .toLowerCase();
-  const filter =
-    (byId("filter-compliance") && byId("filter-compliance").value) || "";
-  const prog =
-    (byId("filter-program") && byId("filter-program").value) || "";
+  const term = ((byId("search-scholars") && byId("search-scholars").value) || "").toLowerCase();
+  const filter = (byId("filter-compliance") && byId("filter-compliance").value) || "";
+  const prog = (byId("filter-program") && byId("filter-program").value) || "";
 
   const rows = staffRows.filter(function (r) {
     const s = r.scholar || {};
-    const nameMatch = ((s.student_id || "") + " " + (s.full_name || ""))
-      .toLowerCase()
-      .includes(term);
+    const nameMatch = ((s.student_id || "") + " " + (s.full_name || "")).toLowerCase().includes(term);
     const compMatch = !filter || r.compliance_status === filter;
-    const progMatch =
-      !prog ||
-      (s.scholarship_programs && s.scholarship_programs.program_name === prog);
+    const progMatch = !prog || (s.scholarship_programs && s.scholarship_programs.program_name === prog);
     return nameMatch && compMatch && progMatch;
   });
 
   if (!rows.length) {
-    box.innerHTML =
-      "<p class='muted'>No matching submissions. The assigned scholar count includes scholars without submissions.</p>";
+    box.innerHTML = "<p class='muted'>No matching submissions. The assigned scholar count includes scholars without submissions.</p>";
     return;
   }
 
@@ -584,55 +519,23 @@ function renderStaffRows() {
 
   rows.forEach(function (r) {
     const s = r.scholar || {};
-    const policy = s.scholarship_programs
-      ? s.scholarship_programs.program_name
-      : "—";
-    const reasons = Array.isArray(r.deficiency_reasons)
-      ? r.deficiency_reasons.join(" ")
-      : "";
-    const renewal =
-      r.renewal_decisions && r.renewal_decisions[0]
-        ? r.renewal_decisions[0].decision
-        : "Not decided";
+    const policy = s.scholarship_programs ? s.scholarship_programs.program_name : "—";
+    const reasons = Array.isArray(r.deficiency_reasons) ? r.deficiency_reasons.join(" ") : "";
+    const renewal = r.renewal_decisions && r.renewal_decisions[0] ? r.renewal_decisions[0].decision : "Not decided";
 
     let actions = "";
     if (r.submission_status === "Pending") {
-      actions +=
-        '<button class="primary" type="button" data-action="verify" data-id="' +
-        r.id +
-        '">Verify</button> ';
-      actions +=
-        '<button class="secondary" type="button" data-action="return" data-id="' +
-        r.id +
-        '">Return</button>';
+      actions += '<button class="primary" type="button" data-action="verify" data-id="' + r.id + '">Verify</button> ';
+      actions += '<button class="secondary" type="button" data-action="return" data-id="' + r.id + '">Return</button>';
     }
-    if (
-      r.submission_status === "Verified" &&
-      (!r.compliance_status || r.compliance_status === "Pending")
-    ) {
-      actions +=
-        '<button class="secondary" type="button" data-action="evaluate" data-id="' +
-        r.id +
-        '">Evaluate</button>';
+    if (r.submission_status === "Verified" && (!r.compliance_status || r.compliance_status === "Pending")) {
+      actions += '<button class="secondary" type="button" data-action="evaluate" data-id="' + r.id + '">Evaluate</button>';
     }
-    if (
-      r.submission_status === "Verified" &&
-      r.compliance_status === "Compliant"
-    ) {
-      actions +=
-        ' <button class="primary" type="button" data-action="approve" data-id="' +
-        r.id +
-        '">Approve</button>';
+    if (r.submission_status === "Verified" && r.compliance_status === "Compliant") {
+      actions += ' <button class="primary" type="button" data-action="approve" data-id="' + r.id + '">Approve</button>';
     }
-    if (
-      r.submission_status === "Verified" &&
-      r.compliance_status &&
-      r.compliance_status !== "Pending"
-    ) {
-      actions +=
-        ' <button class="secondary" type="button" data-action="hold" data-id="' +
-        r.id +
-        '">Hold</button>';
+    if (r.submission_status === "Verified" && r.compliance_status && r.compliance_status !== "Pending") {
+      actions += ' <button class="secondary" type="button" data-action="hold" data-id="' + r.id + '">Hold</button>';
     }
     if (!actions) actions = "—";
 
@@ -661,9 +564,7 @@ function renderStaffRows() {
       esc(formatManila(r.submitted_at)) +
       "</div></td><td>" +
       badge(r.submission_status) +
-      (r.verification_reason
-        ? "<div class='reason'>" + esc(r.verification_reason) + "</div>"
-        : "") +
+      (r.verification_reason ? "<div class='reason'>" + esc(r.verification_reason) + "</div>" : "") +
       "</td><td>" +
       badge(r.compliance_status) +
       "<div class='reason'>" +
@@ -687,10 +588,7 @@ async function handleStaffAction(action, id) {
   showMessage("");
   try {
     if (action === "verify" || action === "return") {
-      const reason =
-        action === "return"
-          ? prompt("Enter the reason for returning this submission:")
-          : null;
+      const reason = action === "return" ? prompt("Enter the reason for returning this submission:") : null;
       if (action === "return" && (!reason || !reason.trim())) {
         showMessage("Return requires a reason.");
         return;
@@ -701,16 +599,9 @@ async function handleStaffAction(action, id) {
         p_reason: reason,
       });
       if (result.error) throw result.error;
-      showMessage(
-        action === "verify"
-          ? "Evidence marked Verified."
-          : "Submission returned for correction.",
-        true
-      );
+      showMessage(action === "verify" ? "Evidence marked Verified." : "Submission returned for correction.", true);
     } else if (action === "evaluate") {
-      const result = await supabaseClient.rpc("staff_evaluate_submission", {
-        p_submission_id: id,
-      });
+      const result = await supabaseClient.rpc("staff_evaluate_submission", { p_submission_id: id });
       if (result.error) throw result.error;
       let status = "done";
       if (result.data) {
@@ -719,30 +610,19 @@ async function handleStaffAction(action, id) {
       }
       showMessage("Evaluation completed: " + status + ".", true);
     } else if (action === "approve" || action === "hold") {
-      const reason =
-        action === "hold" ? prompt("Reason for holding renewal:") : null;
+      const reason = action === "hold" ? prompt("Reason for holding renewal:") : null;
       if (action === "hold" && (!reason || !reason.trim())) {
         showMessage("Hold requires a reason.");
         return;
       }
-      if (
-        !confirm(
-          action === "approve"
-            ? "Approve renewal for this compliant submission?"
-            : "Hold renewal for this scholar?"
-        )
-      )
-        return;
+      if (!confirm(action === "approve" ? "Approve renewal for this compliant submission?" : "Hold renewal for this scholar?")) return;
       const result = await supabaseClient.rpc("staff_decide_renewal", {
         p_submission_id: id,
         p_decision: action === "approve" ? "Approved" : "Held",
         p_reason: reason,
       });
       if (result.error) throw result.error;
-      showMessage(
-        action === "approve" ? "Renewal approved." : "Renewal held.",
-        true
-      );
+      showMessage(action === "approve" ? "Renewal approved." : "Renewal held.", true);
     }
     await loadStaffDashboard();
     await loadAuditHistory();
@@ -758,23 +638,11 @@ function badge(value) {
     : ["With Deficiency", "Returned", "Held"].includes(value)
     ? "bad"
     : "wait";
-  return (
-    '<span class="status ' +
-    cls +
-    '">' +
-    esc(value || "Pending") +
-    "</span>"
-  );
+  return '<span class="status ' + cls + '">' + esc(value || "Pending") + "</span>";
 }
 
 function esc(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
-    return {
-      "&": "&",
-      "<": "<",
-      ">": ">",
-      '"': """,
-      "'": "&#39;",
-    }[ch];
+    return { "&": "&", "<": "<", ">": ">", '"': """, "'": "&#39;" }[ch];
   });
 }
