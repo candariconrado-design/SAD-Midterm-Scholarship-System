@@ -39,3 +39,8 @@ Run TC01–TC10 against the configured website and Supabase project. Record actu
 
 ## Known limitation
 The evidence field stores a grade-document reference; actual private file upload/storage is not implemented. GitHub Pages deployment and Supabase connectivity must be verified in the browser before being described as live and functional.
+
+demo account 
+
+gmail:staff@gmail.com
+password: staff123
