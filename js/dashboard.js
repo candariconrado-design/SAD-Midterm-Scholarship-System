@@ -166,7 +166,7 @@ async function submitAcademicSummary(event) {
     if (!values.evidence_reference) throw new Error("Enter the evidence document reference.");
     let result;
     if (editingSubmissionId) {
-      result = await supabaseClient.from("grade_submissions").update(values).eq("id", editingSubmissionId);
+      result = await supabaseClient.from("grade_submissions").update({ ...values, submission_status: "Pending" }).eq("id", editingSubmissionId);
     } else {
       result = await supabaseClient.from("grade_submissions").insert({
         scholar_id: currentScholar.id,
