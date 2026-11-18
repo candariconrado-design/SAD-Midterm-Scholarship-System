@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard | Scholarship Compliance</title>
-  <link rel="stylesheet" href="css/style.css?v=20261021c">
+  <link rel="stylesheet" href="css/style.css?v=20261118a">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script defer src="js/supabase.js?v=20261021c"></script>
-  <script defer src="js/dashboard.js?v=20261021c"></script>
+  <script defer src="js/supabase.js?v=20261118a"></script>
+  <script defer src="js/dashboard.js?v=20261118a"></script>
 </head>
 <body>
   <header class="topbar">
@@ -16,21 +16,23 @@
   </header>
   <main class="container">
     <section class="page-heading">
-      <div><p class="eyebrow">ACADEMIC YEAR 2026–2027 · SEMESTER 1</p><h1 id="welcome-title">Dashboard</h1><p id="role-description" class="muted">Loading your workspace…</p></div>
+      <div><p class="eyebrow" id="term-heading">ACADEMIC YEAR 2026–2027 · SEMESTER 1</p><h1 id="welcome-title">Dashboard</h1><p id="role-description" class="muted">Loading your workspace…</p></div>
       <span id="role-chip" class="chip">Loading</span>
     </section>
     <p id="page-message" class="message" role="status"></p>
 
     <section id="scholar-panel" class="panel hidden">
       <h2 id="submission-heading">Submit academic summary</h2>
-      <p class="muted">Enter the semester summary shown on your official academic record. The registrar remains the source of official grades.</p>
+      <p class="muted">Select the academic term shown on your official academic record. The Registrar remains the source of official grades.</p>
       <form id="submission-form" class="form-grid">
+        <div><label for="academic-year">Academic year</label><select id="academic-year" required><option value="2026-2027">2026–2027</option></select></div>
+        <div><label for="semester">Semester</label><select id="semester" required><option value="1">Semester 1</option><option value="2">Semester 2</option><option value="3">Summer</option></select></div>
         <div><label for="gwa">GWA (1.00–5.00)</label><input id="gwa" type="number" min="1" max="5" step="0.01" required></div>
         <div><label for="units">Units enrolled</label><input id="units" type="number" min="0" step="1" required></div>
         <div><label for="failed">Failed subjects</label><input id="failed" type="number" min="0" step="1" value="0" required></div>
         <div><label for="incompletes">Incomplete (INC)</label><input id="incompletes" type="number" min="0" step="1" value="0" required></div>
         <div><label for="dropped">Dropped subjects</label><input id="dropped" type="number" min="0" step="1" value="0" required></div>
-        <div class="span-two"><label for="evidence">Evidence document reference</label><input id="evidence" type="text" maxlength="500" required placeholder="e.g. grade-doc-B01.pdf"><small>Do not paste public links containing sensitive personal information.</small></div>
+        <div class="span-two"><label for="evidence">Evidence document reference</label><input id="evidence" type="text" maxlength="500" required placeholder="e.g. grade-doc-B01.pdf"><small>Enter a reference to the supporting grade document. Do not paste public links containing sensitive information.</small></div>
         <div class="span-two"><button class="primary" type="submit">Submit academic summary</button> <button id="cancel-edit" class="secondary hidden" type="button">Cancel correction</button></div>
       </form>
     </section>
@@ -41,25 +43,34 @@
     </section>
 
     <section id="staff-panel" class="hidden">
-      <div class="metrics">
-        <article class="metric"><span>Assigned scholars</span><strong id="metric-assigned">—</strong></article>
-        <article class="metric"><span>Pending verification</span><strong id="metric-pending">—</strong></article>
-        <article class="metric"><span>Compliant</span><strong id="metric-compliant">—</strong></article>
-        <article class="metric"><span>With deficiency</span><strong id="metric-deficiency">—</strong></article>
-      </div>
+      <section class="panel">
+        <div class="section-heading"><div><h2>Dashboard term</h2><p class="muted">Metrics and submission records are limited to the selected academic year and semester.</p></div></div>
+        <div class="toolbar">
+          <select id="staff-academic-year" aria-label="Dashboard academic year"><option value="2026-2027">2026–2027</option></select>
+          <select id="staff-semester" aria-label="Dashboard semester"><option value="1">Semester 1</option><option value="2">Semester 2</option><option value="3">Summer</option></select>
+          <button id="refresh-staff" class="secondary">Refresh</button>
+        </div>
+        <div class="metrics">
+          <article class="metric"><span>Total assigned scholars</span><strong id="metric-assigned">—</strong></article>
+          <article class="metric"><span>Pending verification</span><strong id="metric-pending">—</strong></article>
+          <article class="metric"><span>Compliant</span><strong id="metric-compliant">—</strong></article>
+          <article class="metric"><span>With deficiency</span><strong id="metric-deficiency">—</strong></article>
+        </div>
+      </section>
       <section class="panel">
         <h2>Register scholar</h2>
-        <p class="muted">Create the scholar record and assign a scholarship policy. Link the scholar login in Supabase Auth after registration.</p>
+        <p class="muted">Create a scholar record and assign a persisted scholarship policy. Create the login under Supabase Authentication, then paste its User UID below to link it. The UID field is optional until the login is created.</p>
         <form id="register-scholar-form" class="form-grid">
           <div><label for="reg-student-id">Student ID</label><input id="reg-student-id" required maxlength="40" placeholder="e.g. B01"></div>
           <div><label for="reg-full-name">Full name</label><input id="reg-full-name" required maxlength="150"></div>
           <div><label for="reg-program">Degree program</label><input id="reg-program" required maxlength="100" placeholder="e.g. BSIT"></div>
           <div><label for="reg-policy">Scholarship policy</label><select id="reg-policy" required><option value="">Choose policy</option><option value="Excellence Scholar">Excellence Scholar</option><option value="Access Scholar">Access Scholar</option></select></div>
+          <div class="span-two"><label for="reg-user-id">Supabase Auth User UID (optional)</label><input id="reg-user-id" type="text" maxlength="36" placeholder="Paste the user's UUID after creating their Auth account"></div>
           <div class="span-two"><button class="primary" type="submit">Register scholar</button></div>
         </form>
       </section>
       <section class="panel">
-        <div class="section-heading"><div><h2>Scholar records</h2><p class="muted">Search by student ID or name. Filter by program or compliance status.</p></div><button id="refresh-staff" class="secondary">Refresh</button></div>
+        <div class="section-heading"><div><h2>Scholar records</h2><p class="muted">Search by student ID or name. Filter by scholarship program or compliance status.</p></div></div>
         <div class="toolbar">
           <input id="search-scholars" type="search" placeholder="Search student ID or name">
           <select id="filter-program"><option value="">All programs</option></select>
@@ -68,7 +79,7 @@
         <div id="staff-records" class="table-wrap"></div>
       </section>
       <section class="panel">
-        <div class="section-heading"><div><h2>Audit history</h2><p class="muted">Verification, evaluation, submission, and renewal actions with actor and timestamp.</p></div><button id="refresh-audit" class="secondary">Refresh history</button></div>
+        <div class="section-heading"><div><h2>Audit history</h2><p class="muted">Submission, registration, verification, evaluation, and renewal actions with actor and timestamp.</p></div><button id="refresh-audit" class="secondary">Refresh history</button></div>
         <div id="audit-records" class="table-wrap"></div>
       </section>
     </section>
