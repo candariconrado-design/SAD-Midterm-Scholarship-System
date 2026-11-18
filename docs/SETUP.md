@@ -7,14 +7,18 @@
 4. Put those two public values in js/supabase.js.
 5. Never place a service-role key, secret key, database password, or user password in GitHub/browser code.
 
-## 2. Install the Supabase database code
-The SQL migration and seed code are supplied separately from the GitHub application files, as requested, so SQL is not mixed into the front-end source repository.
+## 2. Install the separate Supabase SQL script
+The database code is supplied separately from the GitHub application files. Do not put SQL scripts inside the GitHub front-end folders.
 
-- For a new Supabase project: first install the schema, then the synthetic seed records, then the security/workflow migration supplied with the project instructions.
-- For an existing project that already has the tables and synthetic data: run only the migration supplied for the existing schema.
-- Do not run an initial schema script on top of a database containing records you need to keep.
-- Run SQL from **Supabase Dashboard → SQL Editor → New query**. Paste the complete script, click **Run**, and confirm the success message.
-- The separate SQL instructions explain which script to run and in what order. Do not run the old staff_functions.sql file from earlier copies; its seed insert omits the required required_gwa field.
+1. Open **Supabase Dashboard → SQL Editor**.
+2. Click **New query**.
+3. Open the separate file named SAD_Midterm_Supabase_Setup.sql.
+4. Copy the complete contents and paste them into the SQL Editor.
+5. Click **Run** and wait for the success result.
+6. The script creates or confirms the required tables, policies, triggers, staff RPC functions, scholarship policies, and six synthetic B01–B06 test records.
+7. If your Supabase project contains important records, make a backup first. The script is written for this project's schema and should not be used against an unrelated database.
+
+Do not run older copies of sql/01_schema_and_security.sql, sql/02_seed_data.sql, or sql/staff_functions.sql. The old staff_functions.sql had an insert that omitted required_gwa and could stop the script.
 
 ## 3. Create test accounts and link scholars
 1. Open **Authentication → Users → Add user**.
@@ -28,7 +32,7 @@ The SQL migration and seed code are supplied separately from the GitHub applicat
    where id = 'PASTE-STAFF-USER-UUID-HERE';
    ```
 
-5. For a scholar account, copy its Auth **User UID**. Register the scholar in the Staff Dashboard and paste the UID in **Supabase Auth User UID**. If the scholar record already exists, update its user_id in the Supabase Table Editor or SQL Editor.
+5. For each scholar account, copy its Auth **User UID**. Register the matching scholar in the Staff Dashboard and paste the UID in **Supabase Auth User UID**. This links the login to the scholar record.
 6. Sign out and sign in again after changing a role.
 
 ## 4. Run and host the website
