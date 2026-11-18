@@ -166,7 +166,7 @@ async function submitAcademicSummary(event) {
     if (!values.evidence_reference) throw new Error("Enter the evidence document reference.");
     let result;
     if (editingSubmissionId) {
-      result = await supabaseClient.from("grade_submissions").update(values).eq("id", editingSubmissionId);
+      result = await supabaseClient.from("grade_submissions").update({ ...values, submission_status: "Pending" }).eq("id", editingSubmissionId);
     } else {
       result = await supabaseClient.from("grade_submissions").insert({
         scholar_id: currentScholar.id,
@@ -355,127 +355,185 @@ async function loadStaffDashboard() {
 
   const scholars = scholarsResult.data || [];
   staffRows = (submissionsResult.data || []).map(function (submission) {
-    submission.scholar = scholars.find(function (scholar) { return scholar.id === submission.scholar_id; }) || null;
+    submission.scholar = scholars.find(function (s) { return s.id === submission.scholar_id; }) || null;
     return submission;
   });
-  byId("metric-assigned").textContent = scholars.length;
-  byId("metric-pending").textContent = staffRows.filter(row => row.submission_status === "Pending").length;
-  byId("metric-compliant").textContent = staffRows.filter(row => row.compliance_status === "Compliant").length;
-  byId("metric-deficiency").textContent = staffRows.filter(row => row.compliance_status === "With Deficiency").length;
 
+  // Metrics
+  byId("metric-assigned").textContent = scholars.length;
+  let pending = 0, compliant = 0, deficiency = 0;
+  staffRows.forEach(function (row) {
+    if (row.submission_status === "Pending") pending++;
+    if (row.compliance_status === "Compliant") compliant++;
+    if (row.compliance_status === "With Deficiency") deficiency++;
+  });
+  byId("metric-pending").textContent = pending;
+  byId("metric-compliant").textContent = compliant;
+  byId("metric-deficiency").textContent = deficiency;
+
+  // Populate program filter options once
   const programSelect = byId("filter-program");
-  const programs = [...new Set(scholars.map(s => s.scholarship_programs && s.scholarship_programs.program_name).filter(Boolean))];
-  const currentProgram = programSelect.value;
-  programSelect.innerHTML = "<option value=''>All programs</option>" + programs.map(p => "<option value='" + esc(p) + "'>" + esc(p) + "</option>").join("");
-  if (programs.includes(currentProgram)) programSelect.value = currentProgram;
+  if (programSelect && programSelect.options.length <= 1) {
+    const programs = [...new Set(scholars.map(s => s.scholarship_programs && s.scholarship_programs.program_name).filter(Boolean))].sort();
+    programs.forEach(function (p) {
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p;
+      programSelect.appendChild(opt);
+    });
+  }
+
   renderStaffRows();
 }
 
 function renderStaffRows() {
   const box = byId("staff-records");
   if (!box) return;
-  const term = (byId("search-scholars").value || "").toLowerCase().trim();
-  const compliance = byId("filter-compliance").value;
-  const program = byId("filter-program").value;
-  const rows = staffRows.filter(function (row) {
+  const search = (byId("search-scholars").value || "").toLowerCase().trim();
+  const filterProgram = byId("filter-program").value;
+  const filterCompliance = byId("filter-compliance").value;
+
+  const filtered = staffRows.filter(function (row) {
     const scholar = row.scholar || {};
-    const nameMatch = ((scholar.student_id || "") + " " + (scholar.full_name || "")).toLowerCase().includes(term);
-    const complianceMatch = !compliance || row.compliance_status === compliance;
-    const programMatch = !program || (scholar.scholarship_programs && scholar.scholarship_programs.program_name === program);
-    return nameMatch && complianceMatch && programMatch;
+    const name = (scholar.full_name || "").toLowerCase();
+    const sid = (scholar.student_id || "").toLowerCase();
+    const program = (scholar.scholarship_programs && scholar.scholarship_programs.program_name) || "";
+    const compliance = row.compliance_status || "";
+    if (search && !name.includes(search) && !sid.includes(search)) return false;
+    if (filterProgram && program !== filterProgram) return false;
+    if (filterCompliance === "Pending" && row.submission_status !== "Pending") return false;
+    if (filterCompliance === "Compliant" && compliance !== "Compliant") return false;
+    if (filterCompliance === "With Deficiency" && compliance !== "With Deficiency") return false;
+    return true;
   });
-  if (!rows.length) { box.innerHTML = "<p class='muted'>No submissions found for this term and filter.</p>"; return; }
-  let html = "<table><thead><tr><th>Scholar</th><th>Policy</th><th>Academic summary</th><th>Verification</th><th>Compliance</th><th>Renewal</th><th>Actions</th></tr></thead><tbody>";
-  rows.forEach(function (row) {
+
+  if (!filtered.length) {
+    box.innerHTML = "<p class='muted'>No matching records for this term.</p>";
+    return;
+  }
+
+  let html = "<table><thead><tr><th>Student</th><th>Policy</th><th>GWA / Units</th><th>Status</th><th>Compliance</th><th>Actions</th></tr></thead><tbody>";
+  filtered.forEach(function (row) {
     const scholar = row.scholar || {};
-    const policyData = scholar.scholarship_programs || {};
-    const policy = policyData.program_name || "-";
-    const policyLimits = policyData.program_name
-      ? "GWA <= " + Number(policyData.max_gwa).toFixed(2) + ", units >= " + policyData.min_units +
-        ", failed <= " + policyData.max_failed + ", INC <= " + policyData.max_incomplete +
-        ", dropped <= " + policyData.max_dropped
-      : "";
+    const program = (scholar.scholarship_programs && scholar.scholarship_programs.program_name) || "-";
     const reasons = Array.isArray(row.deficiency_reasons) ? row.deficiency_reasons.join("; ") : "";
-    const renewal = row.renewal_decisions && row.renewal_decisions[0] ? row.renewal_decisions[0].decision : "Not decided";
+    const renewal = row.renewal_decisions && row.renewal_decisions[0] ? row.renewal_decisions[0].decision : "";
     let actions = "";
     if (row.submission_status === "Pending") {
-      actions += "<button class='primary' type='button' data-action='verify' data-id='" + esc(row.id) + "'>Verify</button> ";
-      actions += "<button class='secondary' type='button' data-action='return' data-id='" + esc(row.id) + "'>Return</button>";
+      actions += "<button class='secondary' type='button' data-verify='" + esc(row.id) + "'>Verify</button> ";
+      actions += "<button class='secondary' type='button' data-return='" + esc(row.id) + "'>Return</button>";
+    } else if (row.submission_status === "Verified" && !row.compliance_status) {
+      actions += "<button class='secondary' type='button' data-evaluate='" + esc(row.id) + "'>Evaluate</button>";
+    } else if (row.compliance_status === "Compliant" && !renewal) {
+      actions += "<button class='primary' type='button' data-approve='" + esc(row.id) + "'>Approve</button> ";
+      actions += "<button class='secondary' type='button' data-hold='" + esc(row.id) + "'>Hold</button>";
+    } else if (row.compliance_status === "With Deficiency" && !renewal) {
+      actions += "<button class='secondary' type='button' data-hold='" + esc(row.id) + "'>Hold</button>";
     }
-    if (row.submission_status === "Verified" && row.compliance_status === "Pending") {
-      actions += "<button class='secondary' type='button' data-action='evaluate' data-id='" + esc(row.id) + "'>Evaluate</button>";
-    }
-    if (row.submission_status === "Verified" && row.compliance_status === "Compliant") {
-      actions += "<button class='primary' type='button' data-action='approve' data-id='" + esc(row.id) + "'>Approve renewal</button> ";
-      actions += "<button class='secondary' type='button' data-action='hold' data-id='" + esc(row.id) + "'>Hold</button>";
-    }
-    if (row.submission_status === "Verified" && row.compliance_status === "With Deficiency") {
-      actions += "<button class='secondary' type='button' data-action='hold' data-id='" + esc(row.id) + "'>Hold</button>";
-    }
-    if (!actions) actions = "-";
-    html += "<tr><td><strong>" + esc(scholar.full_name || "Unknown") + "</strong><div class='reason'>" +
-      esc(scholar.student_id || "") + " · " + esc(scholar.degree_program || "") +
-      "</div></td><td>" + esc(policy) + "<div class='reason'>" + esc(policyLimits) + "</div>" +
-      "</td><td>GWA " + Number(row.gwa).toFixed(2) +
-      "<div class='reason'>" + row.units_enrolled + " units · Failed " + row.failed_subjects +
-      " · INC " + row.incomplete_subjects + " · Dropped " + row.dropped_subjects +
-      "</div><div class='reason'>" + esc(row.evidence_reference) +
-      "</div><div class='reason'>Submitted: " + esc(formatManila(row.submitted_at)) +
-      "</div></td><td>" + badge(row.submission_status) +
-      (row.verification_reason ? "<div class='reason'>" + esc(row.verification_reason) + "</div>" : "") +
-      "</td><td>" + badge(row.compliance_status) + "<div class='reason'>" + esc(reasons) +
-      "</div></td><td>" + badge(renewal) +
-      "</td><td class='actions'>" + actions + "</td></tr>";
+    html += "<tr><td>" + esc(scholar.student_id || "") + "<div class='muted'>" + esc(scholar.full_name || "") + "</div></td>" +
+      "<td>" + esc(program) + "</td>" +
+      "<td>" + Number(row.gwa).toFixed(2) + " / " + row.units_enrolled + "</td>" +
+      "<td>" + badge(row.submission_status) + (row.verification_reason ? "<div class='reason'>" + esc(row.verification_reason) + "</div>" : "") + "</td>" +
+      "<td>" + badge(row.compliance_status || "-") + "<div class='reason'>" + esc(reasons) + "</div></td>" +
+      "<td>" + actions + "</td></tr>";
   });
   box.innerHTML = html + "</tbody></table>";
-  box.querySelectorAll("button[data-action]").forEach(function (button) {
-    button.addEventListener("click", function () { handleStaffAction(button.dataset.action, button.dataset.id); });
+
+  box.querySelectorAll("button[data-verify]").forEach(function (btn) {
+    btn.addEventListener("click", function () { staffVerify(btn.dataset.verify); });
+  });
+  box.querySelectorAll("button[data-return]").forEach(function (btn) {
+    btn.addEventListener("click", function () { staffReturn(btn.dataset.return); });
+  });
+  box.querySelectorAll("button[data-evaluate]").forEach(function (btn) {
+    btn.addEventListener("click", function () { staffEvaluate(btn.dataset.evaluate); });
+  });
+  box.querySelectorAll("button[data-approve]").forEach(function (btn) {
+    btn.addEventListener("click", function () { staffDecide(btn.dataset.approve, "Approved"); });
+  });
+  box.querySelectorAll("button[data-hold]").forEach(function (btn) {
+    btn.addEventListener("click", function () { staffDecide(btn.dataset.hold, "Held"); });
   });
 }
 
-async function handleStaffAction(action, id) {
+async function staffVerify(id) {
   showMessage("");
   try {
-    if (action === "verify" || action === "return") {
-      const reason = action === "return" ? prompt("Enter the reason for returning this submission:") : null;
-      if (action === "return" && (!reason || !reason.trim())) { showMessage("A reason is required to return a submission."); return; }
-      const result = await supabaseClient.rpc("staff_verify_submission", {
-        p_submission_id: id,
-        p_decision: action === "verify" ? "Verified" : "Returned",
-        p_reason: reason
-      });
-      if (result.error) throw result.error;
-      showMessage(action === "verify" ? "Evidence verified." : "Submission returned for correction.", true);
-    } else if (action === "evaluate") {
-      const result = await supabaseClient.rpc("staff_evaluate_submission", { p_submission_id: id });
-      if (result.error) throw result.error;
-      const data = typeof result.data === "string" ? JSON.parse(result.data) : result.data;
-      showMessage("Evaluation completed: " + (data.status || "Completed") + (data.reasons && data.reasons.length ? " — " + data.reasons.join("; ") : ""), true);
-    } else if (action === "approve" || action === "hold") {
-      const reason = action === "hold" ? prompt("Reason for holding renewal:") : null;
-      if (action === "hold" && (!reason || !reason.trim())) { showMessage("A reason is required to hold renewal."); return; }
-      if (!confirm(action === "approve" ? "Approve renewal for this Compliant submission?" : "Hold renewal for this scholar?")) return;
-      const result = await supabaseClient.rpc("staff_decide_renewal", {
-        p_submission_id: id,
-        p_decision: action === "approve" ? "Approved" : "Held",
-        p_reason: reason
-      });
-      if (result.error) throw result.error;
-      showMessage(action === "approve" ? "Renewal approved." : "Renewal held.", true);
-    }
+    const result = await supabaseClient.rpc("staff_verify_submission", { p_submission_id: id });
+    if (result.error) throw result.error;
+    showMessage("Submission verified.", true);
     await loadStaffDashboard();
     await loadAuditHistory();
   } catch (e) {
-    console.error("Staff action failed", action, id, e);
     showMessage(rpcError(e));
   }
 }
-function badge(value) {
-  const cls = ["Compliant", "Approved", "Verified"].includes(value) ? "good"
-    : ["With Deficiency", "Returned", "Held"].includes(value) ? "bad" : "wait";
-  return "<span class='status " + cls + "'>" + esc(value || "Pending") + "</span>";
+
+async function staffReturn(id) {
+  const reason = prompt("Reason for returning this submission:");
+  if (reason === null) return;
+  if (!reason.trim()) { showMessage("A reason is required to return a submission."); return; }
+  showMessage("");
+  try {
+    const result = await supabaseClient.rpc("staff_return_submission", { p_submission_id: id, p_reason: reason.trim() });
+    if (result.error) throw result.error;
+    showMessage("Submission returned for correction.", true);
+    await loadStaffDashboard();
+    await loadAuditHistory();
+  } catch (e) {
+    showMessage(rpcError(e));
+  }
 }
+
+async function staffEvaluate(id) {
+  showMessage("");
+  try {
+    const result = await supabaseClient.rpc("staff_evaluate_submission", { p_submission_id: id });
+    if (result.error) throw result.error;
+    showMessage("Compliance evaluated.", true);
+    await loadStaffDashboard();
+    await loadAuditHistory();
+  } catch (e) {
+    showMessage(rpcError(e));
+  }
+}
+
+async function staffDecide(id, decision) {
+  let reason = "";
+  if (decision === "Held") {
+    reason = prompt("Reason for holding the renewal:") || "";
+    if (!reason.trim()) { showMessage("A reason is required to hold a renewal."); return; }
+  }
+  showMessage("");
+  try {
+    const result = await supabaseClient.rpc("staff_decide_renewal", {
+      p_submission_id: id,
+      p_decision: decision,
+      p_reason: reason.trim() || null
+    });
+    if (result.error) throw result.error;
+    showMessage("Renewal decision recorded: " + decision + ".", true);
+    await loadStaffDashboard();
+    await loadAuditHistory();
+  } catch (e) {
+    showMessage(rpcError(e));
+  }
+}
+
+function badge(text) {
+  if (!text) return "<span class='badge muted'>–</span>";
+  const t = String(text);
+  let cls = "badge";
+  if (t === "Pending" || t === "Returned") cls += " warn";
+  else if (t === "Verified" || t === "Compliant" || t === "Approved") cls += " ok";
+  else if (t === "With Deficiency" || t === "Held") cls += " bad";
+  return "<span class='" + cls + "'>" + esc(t) + "</span>";
+}
+
 function esc(value) {
-  return String(value == null ? "" : value).replace(/&/g, "&amp;").replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, """);
 }
