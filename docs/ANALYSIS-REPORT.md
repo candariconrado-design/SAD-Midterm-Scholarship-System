@@ -64,14 +64,14 @@ The system actors are Scholar and Scholarship Staff. The registrar and program c
 ### Functional requirements
 - FR-01: The system shall authenticate users before displaying protected pages or data.
 - FR-02: The system shall enforce Scholar and Scholarship Staff access through database authorization.
-- FR-03: A scholar shall submit GWA, units, failed/INC/dropped counts, and an evidence reference.
-- FR-04: The system shall reject GWA outside 1.00–5.00, negative counts, non-integer counts, and duplicate semester submissions.
+- FR-03: A scholar shall select an academic year and semester, then submit GWA, units, failed/INC/dropped counts, and an evidence reference.
+- FR-04: The system shall reject GWA outside 1.00–5.00, negative counts, non-integer counts, missing evidence references, and duplicate scholar/year/semester submissions.
 - FR-05: Staff shall verify a pending submission or return it with a reason.
 - FR-06: A returned submission shall be correctable and resubmittable for verification.
 - FR-07: Staff shall evaluate only verified submissions using the scholar's active database policy.
 - FR-08: The system shall show Compliant or With Deficiency and list all failed policy checks.
 - FR-09: Staff shall approve renewal only for compliant submissions or hold a renewal with a reason.
-- FR-10: The system shall display dashboard metrics and retain actor/time audit history for key actions.
+- FR-10: The system shall display total assigned scholars and selected-term verification/compliance metrics, support search/filter, and retain actor/time audit history for key actions.
 
 ### Nonfunctional requirements
 - NFR-01 Security: protected tables use Row Level Security; non-staff cannot execute staff workflow functions.
@@ -120,10 +120,10 @@ Required UML relationships to draw:
 - Preconditions: User is authenticated, linked to a scholar record, and has no submission for the same academic year and semester.
 - Main flow:
   1. Scholar opens the submission form.
-  2. System shows the academic summary fields.
+  2. System asks the scholar to select the academic year and semester, then shows the academic summary fields.
   3. Scholar enters GWA, units, failed/INC/dropped counts, and evidence reference.
   4. System validates ranges, integer counts, required evidence, and duplicate term.
-  5. System saves the record as Pending Verification with a timestamp.
+  5. System saves the record as Pending Verification with a server-generated submission timestamp. The original timestamp is preserved when a returned record is corrected.
   6. System records the submission event in audit history.
   7. System displays confirmation and submission status.
 - Alternative/exception flows: Invalid GWA/counts are rejected with a message. Missing evidence is rejected. Duplicate term is rejected. If staff returned the record, scholar corrects and resubmits it to Pending Verification.
@@ -162,7 +162,7 @@ The full matrix is maintained in `docs/TRACEABILITY-MATRIX.md`. It maps all ten 
 
 ## Implementation status and limitations
 
-The repository includes the sign-in page, role-based dashboard, scholar submission and correction form, staff registration and review interface, dashboard metrics, search/filter controls, and audit-history interface. These screens still require configuration and end-to-end testing against the Supabase project before they can be described as fully working.
+The repository includes the sign-in page, role-based dashboard, academic year/semester selectors, scholar submission and correction form, staff registration and account-linking interface, selected-term dashboard metrics, policy thresholds, search/filter controls, and audit-history interface. These screens still require the separate Supabase SQL setup and end-to-end testing against the configured project before they can be described as fully working.
 
 - The evidence field stores a grade-document reference; actual file upload/private storage is not implemented.
 - Create and record actual results for TC01–TC10 after configuring Supabase. Do not claim tests passed before they are run.
