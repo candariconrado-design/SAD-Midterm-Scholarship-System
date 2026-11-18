@@ -345,7 +345,7 @@ async function loadStaffDashboard() {
   byId("term-heading").textContent = "ACADEMIC YEAR " + academicYear.replace("-", "–") + " · " + (semester === 3 ? "SUMMER" : "SEMESTER " + semester);
 
   const scholarsResult = await supabaseClient.from("scholars")
-    .select("id,student_id,full_name,degree_program,user_id,scholarship_programs(program_name)");
+    .select("id,student_id,full_name,degree_program,user_id,scholarship_programs(program_name,max_gwa,min_units,max_failed,max_incomplete,max_dropped,deadline)");
   if (scholarsResult.error) { box.textContent = scholarsResult.error.message; showMessage("Scholars query: " + scholarsResult.error.message); return; }
   const submissionsResult = await supabaseClient.from("grade_submissions")
     .select("id,scholar_id,academic_year,semester,gwa,units_enrolled,failed_subjects,incomplete_subjects,dropped_subjects,evidence_reference,submitted_at,submission_status,verification_reason,compliance_status,deficiency_reasons,renewal_decisions(decision,reason)")
@@ -388,7 +388,13 @@ function renderStaffRows() {
   let html = "<table><thead><tr><th>Scholar</th><th>Policy</th><th>Academic summary</th><th>Verification</th><th>Compliance</th><th>Renewal</th><th>Actions</th></tr></thead><tbody>";
   rows.forEach(function (row) {
     const scholar = row.scholar || {};
-    const policy = scholar.scholarship_programs ? scholar.scholarship_programs.program_name : "-";
+    const policyData = scholar.scholarship_programs || {};
+    const policy = policyData.program_name || "-";
+    const policyLimits = policyData.program_name
+      ? "GWA <= " + Number(policyData.max_gwa).toFixed(2) + ", units >= " + policyData.min_units +
+        ", failed <= " + policyData.max_failed + ", INC <= " + policyData.max_incomplete +
+        ", dropped <= " + policyData.max_dropped
+      : "";
     const reasons = Array.isArray(row.deficiency_reasons) ? row.deficiency_reasons.join("; ") : "";
     const renewal = row.renewal_decisions && row.renewal_decisions[0] ? row.renewal_decisions[0].decision : "Not decided";
     let actions = "";
@@ -409,7 +415,7 @@ function renderStaffRows() {
     if (!actions) actions = "-";
     html += "<tr><td><strong>" + esc(scholar.full_name || "Unknown") + "</strong><div class='reason'>" +
       esc(scholar.student_id || "") + " · " + esc(scholar.degree_program || "") +
-      "</div></td><td>" + esc(policy) +
+      "</div></td><td>" + esc(policy) + "<div class='reason'>" + esc(policyLimits) + "</div>" +
       "</td><td>GWA " + Number(row.gwa).toFixed(2) +
       "<div class='reason'>" + row.units_enrolled + " units · Failed " + row.failed_subjects +
       " · INC " + row.incomplete_subjects + " · Dropped " + row.dropped_subjects +
