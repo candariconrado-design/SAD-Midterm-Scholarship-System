@@ -17,6 +17,8 @@ document.addEventListener("DOMContentLoaded", async function () {
   safeOn("filter-program", "change", renderStaffRows);
   safeOn("staff-academic-year", "change", loadStaffDashboard);
   safeOn("staff-semester", "change", loadStaffDashboard);
+  safeOn("academic-year", "change", updateScholarTermHeading);
+  safeOn("semester", "change", updateScholarTermHeading);
 
   try {
     if (!window.supabase) throw new Error("Supabase library failed to load.");
@@ -79,6 +81,15 @@ document.addEventListener("DOMContentLoaded", async function () {
 });
 
 function byId(id) { return document.getElementById(id); }
+function updateScholarTermHeading() {
+  const year = byId("academic-year");
+  const term = byId("semester");
+  const heading = byId("term-heading");
+  if (year && term && heading && currentRole === "scholar") {
+    const sem = Number(term.value);
+    heading.textContent = "ACADEMIC YEAR " + year.value.replace("-", "–") + " · " + (sem === 3 ? "SUMMER" : "SEMESTER " + sem);
+  }
+}
 function safeOn(id, event, handler) { const el = byId(id); if (el) el.addEventListener(event, handler); }
 function showMessage(message, success) {
   const el = byId("page-message");
@@ -172,6 +183,8 @@ async function submitAcademicSummary(event) {
     byId("submission-heading").textContent = "Submit academic summary";
     byId("cancel-edit").classList.add("hidden");
     form.reset();
+    byId("academic-year").disabled = false;
+    byId("semester").disabled = false;
     byId("failed").value = "0";
     byId("incompletes").value = "0";
     byId("dropped").value = "0";
