@@ -1,14 +1,16 @@
 # UML Use Case Diagram and ERD
 
-These diagrams represent the Student Scholarship Monitoring and Academic Compliance System. The Mermaid source can be viewed in GitHub's Markdown preview.
+These diagrams describe the Student Scholarship Monitoring and Academic Compliance System. The two required actors are Scholar and Scholarship Staff.
 
-## Use Case Diagram
+## UML Use Case Diagram
 
 ```mermaid
 flowchart LR
   Scholar([Scholar])
   Staff([Scholarship Staff])
+
   subgraph System["Student Scholarship Monitoring and Academic Compliance System"]
+    direction TB
     Login([Sign in])
     Submit([Submit Academic Summary])
     Status([View Submission Status])
@@ -20,28 +22,41 @@ flowchart LR
     Deadline([Check Submission Deadline])
     Reasons([View Deficiency Reasons])
     Renewal([Record Renewal Decision])
-    Dashboard([View Dashboard, Search and Filter])
+    Dashboard([View Dashboard])
+    Search([Search and Filter Scholars])
     History([View Audit History])
+    Logout([Sign out])
   end
-  Scholar --> Login
-  Scholar --> Submit
-  Scholar --> Status
-  Scholar --> Correct
-  Staff --> Login
-  Staff --> Register
-  Staff --> Verify
-  Staff --> Evaluate
-  Staff --> Renewal
-  Staff --> Dashboard
-  Staff --> History
+
+  Scholar --- Login
+  Scholar --- Submit
+  Scholar --- Status
+  Scholar --- Correct
+  Scholar --- Logout
+
+  Staff --- Login
+  Staff --- Register
+  Staff --- Verify
+  Staff --- Evaluate
+  Staff --- Renewal
+  Staff --- Dashboard
+  Staff --- Search
+  Staff --- History
+  Staff --- Logout
+
   Evaluate -. "<<include>>" .-> Policy
   Evaluate -. "<<include>>" .-> Deadline
-  Reasons -. "<<extend>> when checks fail" .-> Evaluate
+  Reasons -. "<<extend>> when a policy check fails" .-> Evaluate
 ```
+
+**Relationship justification**
+- Evaluate Compliance includes Check Assigned Policy because every evaluation must read the scholar's persisted scholarship thresholds.
+- Evaluate Compliance includes Check Submission Deadline because every evaluation must compare the server-recorded submission time with the program deadline.
+- View Deficiency Reasons extends Evaluate Compliance only when one or more policy checks fail.
 
 ## Entity Relationship Diagram
 
-The database stores the compliance status and deficiency reasons on `grade_submissions`; there is no separate compliance-evaluations table in this schema.
+The database stores the compliance status and deficiency reasons on grade_submissions; it does not use a separate compliance-evaluations table.
 
 ```mermaid
 erDiagram
@@ -61,6 +76,7 @@ erDiagram
   SCHOLARSHIP_PROGRAMS {
     uuid id PK
     text program_name UK
+    numeric required_gwa
     numeric max_gwa
     integer min_units
     integer max_failed
@@ -117,8 +133,8 @@ erDiagram
 ## Relationship notes
 - Each authenticated account has a profile and a role.
 - A scholar login link is optional until a test account is linked to a scholar record.
-- A scholarship program can be assigned to many scholars.
-- Each scholar can submit one record per academic year and semester; duplicate terms are blocked.
-- Each submission stores verification status, compliance result, and deficiency reasons.
-- Each submission can have at most one current renewal decision; the decision is upserted by the staff workflow.
+- One scholarship program can be assigned to many scholars.
+- Each scholar can submit one record per academic year and semester; a unique constraint blocks duplicate terms.
+- Each submission stores the verification status, compliance result, and specific deficiency reasons.
+- Each submission can have at most one current renewal decision; staff changes are recorded in audit history.
 - Database policies restrict scholars to their own records and reserve verification, evaluation, and renewal actions for Scholarship Staff.
