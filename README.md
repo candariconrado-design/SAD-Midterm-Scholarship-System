@@ -41,3 +41,8 @@ The code and SQL require end-to-end testing in the configured Supabase project. 
 
 ## Known limitation
 The evidence field stores a document reference; actual private file upload/storage is not implemented. GitHub Pages deployment and Supabase connectivity must be verified in the browser before being described as live and functional.
+
+
+## Supabase setup
+
+The database schema, synthetic seed data, RLS policies, triggers, and RPC SQL are supplied separately from the GitHub front-end code. Follow docs/SETUP.md and the separate Supabase SQL instructions. Never add a service-role key or password to this repository.
