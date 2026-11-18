@@ -13,7 +13,7 @@ This matrix maps each functional requirement to the relevant actor/use case, bus
 | FR-07 | Staff | Evaluate Compliance | BR-01 to BR-05 | `staff_evaluate_submission` | TC01–TC06 | Only verified submissions are evaluated against the assigned policy. |
 | FR-08 | Both | View Compliance Result | BR-01 to BR-05 | `compliance_status`, `deficiency_reasons` | TC01–TC05 | Status and applicable deficiency reasons are displayed. |
 | FR-09 | Staff | Record Renewal Decision | BR-06 | `staff_decide_renewal` | TC10 | Only compliant submissions can be approved; Held requires a reason. |
-| FR-10 | Staff | View Dashboard and Audit History | BR-06 | Dashboard metrics, filters, and `loadAuditHistory` | TC09–TC10 | Dashboard metrics and actor/time history are displayed. |
+| FR-10 | Staff | View Dashboard and Audit History | BR-06 | Selected-term dashboard metrics, policy limits, filters, and `loadAuditHistory` | TC09–TC10 | Dashboard metrics and actor/time history are displayed. |
 
 ## Execution result template
 
